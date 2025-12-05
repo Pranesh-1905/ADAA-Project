@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+motor
+pymongo
+celery[redis]
+redis
+langchain
+langgraph
+python-dotenv
+python-multipart
+docker
+pandas
+groq

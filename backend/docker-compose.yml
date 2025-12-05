@@ -1,0 +1,57 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  # 1. MongoDB Database
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db 
+
+  # 2. Redis Message Broker
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+
+  # 3. FastAPI API Orchestrator
+  api:
+    build: 
+      context: .
+      dockerfile: backend/Dockerfile
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # Windows Volume Mounting: These paths refer to the project structure on your Windows drive
+    volumes:
+      - ./backend:/app 
+      - ./data_uploads:/data_uploads 
+    ports:
+      - "8000:8000"
+    depends_on:
+      - mongodb
+      - redis
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      REDIS_BROKER: redis://redis:6379/0
+      # Add your OpenAI/LLM key here when needed
+
+  # 4. Celery Worker (Runs Agent Logic)
+  worker:
+    build: 
+      context: .
+      dockerfile: backend/Dockerfile
+    command: celery -A worker worker --loglevel=info
+    volumes:
+      - ./backend:/app
+      - ./data_uploads:/data_uploads
+      # CRITICAL: Mounts the Docker socket for sandbox control (required on Windows/WSL)
+      - /var/run/docker.sock:/var/run/docker.sock 
+    depends_on:
+      - api
+    environment:
+      MONGO_URI: mongodb://mongodb:27017
+      REDIS_BROKER: redis://redis:6379/0
+
+volumes:
+  mongo_data:
