@@ -11,3 +11,7 @@ python-multipart
 docker
 pandas
 groq
+matplotlib
+seaborn
+python-jose
+passlib[bcrypt]

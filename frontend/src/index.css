@@ -1,1 +1,46 @@
 @import "tailwindcss";
+
+html, body {
+  background: #fff;
+  color: #23272f;
+  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+  min-height: 100vh;
+  transition: background 0.4s cubic-bezier(.4,0,.2,1), color 0.3s cubic-bezier(.4,0,.2,1);
+}
+
+* {
+  transition-property: background, color, border, box-shadow, transform;
+  transition-duration: 0.3s;
+  transition-timing-function: cubic-bezier(.4,0,.2,1);
+}
+
+/* Accent color palette */
+:root {
+  --accent-blue: #2563eb;
+  --accent-purple: #a21caf;
+  --accent-pink: #ec4899;
+  --accent-green: #22c55e;
+  --accent-yellow: #eab308;
+}
+
+/* Example accent usage for buttons and highlights */
+.btn-accent {
+  background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-pink));
+  color: #fff;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  box-shadow: 0 2px 8px 0 rgba(36, 37, 47, 0.06);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.btn-accent:hover {
+  box-shadow: 0 4px 16px 0 rgba(36, 37, 47, 0.10);
+  transform: translateY(-2px) scale(1.03);
+}
+
+/* Subtle card background for sections */
+.card-white {
+  background: #fff;
+  border-radius: 1.25rem;
+  box-shadow: 0 2px 16px 0 rgba(36, 37, 47, 0.06);
+  border: 1px solid #f1f5f9;
+}
