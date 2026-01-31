@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.ai import ask_groq
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -14,7 +15,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.schemas import UserCreate, Token
 from fastapi import Depends
 from datetime import timedelta
+from app.auth_google import router as google_auth_router
 app = FastAPI()
+app.include_router(google_auth_router)
+
+# Add SessionMiddleware for OAuth (must be before CORS)
+app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 # Add CORS middleware
 app.add_middleware(
@@ -112,21 +118,37 @@ async def ask(question: str, task_id: str, current_user: dict = Depends(get_curr
     job = await db.analysis_jobs.find_one({"task_id": task_id, "user": current_user.get("username")})
 
     if not job:
-        return {"error": "No analysis found for given task"}
+        raise HTTPException(status_code=404, detail="No analysis found for given task")
+
+    # Check if analysis is still processing
+    if job.get("status") != "completed":
+        raise HTTPException(status_code=202, detail="Analysis still processing. Please wait.")
+
+    # Check if result exists
+    if "result" not in job or not job["result"]:
+        raise HTTPException(status_code=400, detail="No analysis results available")
 
     result = job["result"]
 
     prompt = f"""
-    You are a data analyst.
-    Based on this analysis result: {result}
-    Answer this question: {question}
+    You are a data analyst expert. Analyze the following dataset and answer the user's question.
+    
+    Dataset Summary:
+    - Total Rows: {result.get('rows', 'Unknown')}
+    - Columns: {', '.join(result.get('columns', [])) if result.get('columns') else 'Unknown'}
+    - Statistics: {result.get('summary', {})}
+    
+    User Question: {question}
+    
+    Provide a clear, concise, and insightful answer based on the dataset.
     """
 
     try:
         answer = ask_groq(prompt)
         return {"answer": answer}
     except Exception as e:
-        raise HTTPException(status_code=503, detail=str(e))
+        logger.error(f"Error in ask endpoint: {str(e)}")
+        raise HTTPException(status_code=503, detail=f"Failed to generate answer: {str(e)}")
 from app.worker import generate_visuals
 
 @app.get("/visualize/{task_id}")
@@ -138,7 +160,8 @@ async def visualize(task_id: str, current_user: dict = Depends(get_current_user)
 
     filename = job["filename"]
 
-    task = generate_visuals.delay(filename, current_user.get("username"))
+    # Pass task_id to the worker
+    task = generate_visuals.delay(task_id, filename, current_user.get("username"))
 
     return {"message": "Visualization started", "visual_task_id": task.id}
 

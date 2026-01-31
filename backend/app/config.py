@@ -6,6 +6,8 @@ class Settings(BaseSettings):
     MONGO_URI: str
     REDIS_BROKER: str
     SECRET_KEY: str
+    google_client_id: str = ""
+    google_client_secret: str = ""
 
     class Config:
         env_file = ".env"

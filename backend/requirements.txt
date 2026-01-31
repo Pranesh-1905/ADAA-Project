@@ -15,3 +15,5 @@ matplotlib
 seaborn
 python-jose
 passlib[bcrypt]
+openpyxl
+xlrd
