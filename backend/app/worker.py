@@ -1,9 +1,14 @@
 from celery import Celery
 import pandas as pd
+import numpy as np
 import logging
 from app.config import settings
 from pymongo import MongoClient
 import os
+import asyncio
+
+# Import multi-agent system
+from app.agents import get_orchestrator
 
 # ---------------- Logging ----------------
 logging.basicConfig(level=logging.INFO)
@@ -25,13 +30,34 @@ UPLOAD_DIR = "data_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 
+# ---------------- Helper Functions ----------------
+def convert_numpy_types(obj):
+    """
+    Recursively convert numpy types to Python native types for MongoDB compatibility.
+    """
+    if isinstance(obj, np.integer):
+        return int(obj)
+    elif isinstance(obj, np.floating):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, dict):
+        return {key: convert_numpy_types(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_numpy_types(item) for item in obj]
+    elif isinstance(obj, tuple):
+        return tuple(convert_numpy_types(item) for item in obj)
+    else:
+        return obj
+
+
 # ==========================================================
-#   MAIN ANALYSIS TASK
+#   MAIN ANALYSIS TASK (WITH MULTI-AGENT SYSTEM)
 # ==========================================================
 @celery.task(bind=True)
 def analyze_dataset(self, filename, user: str):
     try:
-        logger.info(f"Received task for file: {filename}")
+        logger.info(f"[MULTI-AGENT] Received task for file: {filename}")
 
         file_path = os.path.join(UPLOAD_DIR, filename)
 
@@ -41,28 +67,113 @@ def analyze_dataset(self, filename, user: str):
             df = pd.read_excel(file_path)
         elif filename.lower().endswith('.csv'):
             logger.info(f"Reading CSV file: {filename}")
-            df = pd.read_csv(file_path)
+            # Try different encodings
+            encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
+            df = None
+            last_error = None
+            
+            for encoding in encodings:
+                try:
+                    logger.info(f"Trying encoding: {encoding}")
+                    df = pd.read_csv(file_path, encoding=encoding)
+                    logger.info(f"Successfully read CSV with encoding: {encoding}")
+                    break
+                except (UnicodeDecodeError, UnicodeError) as e:
+                    last_error = e
+                    continue
+            
+            if df is None:
+                raise ValueError(f"Could not read CSV file with any supported encoding. Last error: {last_error}")
         else:
             raise ValueError(f"Unsupported file type: {filename}. Please upload CSV or Excel files.")
 
-        result = {
+        # ==========================================================
+        #   RUN MULTI-AGENT ANALYSIS
+        # ==========================================================
+        logger.info(f"[MULTI-AGENT] Starting orchestrated analysis")
+        
+        # Get orchestrator instance
+        orchestrator = get_orchestrator()
+        orchestrator.reset()  # Reset for fresh analysis
+        
+        # Run all agents asynchronously
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        agent_results = loop.run_until_complete(
+            orchestrator.analyze(
+                data=df,
+                context={"filename": filename, "user": user}
+            )
+        )
+        
+        loop.close()
+        
+        logger.info(f"[MULTI-AGENT] Analysis completed. Agents run: {agent_results.get('agents_run', [])}")
+        
+        # ==========================================================
+        #   EXTRACT RESULTS FROM EACH AGENT
+        # ==========================================================
+        results = agent_results.get("results", {})
+        
+        # Basic dataset info (for backward compatibility)
+        basic_result = {
             "rows": len(df),
             "columns": list(df.columns),
             "summary": df.describe(include="all").to_dict(),
             "dtypes": {col: str(dtype) for col, dtype in df.dtypes.items()}
         }
+        
+        # Data Profiler results
+        profiler_data = results.get("data_profiler", {}).get("results", {})
+        
+        # Insight Discovery results
+        insights_data = results.get("insight_discovery", {}).get("results", {})
+        
+        # Visualization results
+        viz_data = results.get("visualization", {}).get("results", {})
+        
+        # Recommendation results
+        rec_data = results.get("recommendation", {}).get("results", {})
+        
+        # ==========================================================
+        #   OPTIMIZE FOR MONGODB (Remove large chart configs)
+        # ==========================================================
+        # Chart configs can be very large (contains all data points)
+        # We keep the chart files on disk and only store metadata in MongoDB
+        if viz_data and "charts" in viz_data:
+            for chart in viz_data["charts"]:
+                # Remove the large 'config' field, keep only metadata
+                if "config" in chart:
+                    del chart["config"]
+        
+        # Combine all results
+        combined_result = {
+            **basic_result,
+            "agent_analysis": {
+                "status": agent_results.get("status"),
+                "duration": agent_results.get("duration"),
+                "summary": agent_results.get("summary"),
+                "profiler": profiler_data,
+                "insights": insights_data,
+                "visualizations": viz_data,
+                "recommendations": rec_data,
+                "activities": agent_results.get("activities", [])
+            }
+        }
 
-        # Save in MongoDB and associate with user
+        # Save in MongoDB with all agent results (convert numpy types first)
         db.analysis_jobs.insert_one({
             "task_id": self.request.id,
             "filename": filename,
-            "result": result,
+            "result": convert_numpy_types(combined_result),
             "status": "completed",
-            "user": user
+            "user": user,
+            "agent_summary": convert_numpy_types(agent_results.get("summary", {}))
         })
 
-        logger.info(f"Analysis completed for: {filename}")
-        return result
+        logger.info(f"[MULTI-AGENT] Analysis completed and saved for: {filename}")
+        return combined_result
 
     except Exception as e:
         error_message = str(e)
@@ -75,7 +186,7 @@ def analyze_dataset(self, filename, user: str):
             "user": user
         })
 
-        logger.error(f"Analysis failed for {filename} - {error_message}")
+        logger.error(f"[MULTI-AGENT] Analysis failed for {filename} - {error_message}")
         return {"error": error_message}
 
 import matplotlib.pyplot as plt
@@ -94,7 +205,19 @@ def generate_visuals(self, task_id, filename, user: str):
         if filename.lower().endswith('.xlsx') or filename.lower().endswith('.xls'):
             df = pd.read_excel(file_path)
         elif filename.lower().endswith('.csv'):
-            df = pd.read_csv(file_path)
+            # Try different encodings
+            encodings = ['utf-8', 'latin-1', 'iso-8859-1', 'cp1252', 'utf-16']
+            df = None
+            
+            for encoding in encodings:
+                try:
+                    df = pd.read_csv(file_path, encoding=encoding)
+                    break
+                except (UnicodeDecodeError, UnicodeError):
+                    continue
+            
+            if df is None:
+                raise ValueError(f"Could not read CSV file with any supported encoding")
         else:
             raise ValueError(f"Unsupported file type: {filename}")
 

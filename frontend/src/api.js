@@ -24,7 +24,7 @@ const apiRequest = async (endpoint, options = {}) => {
 
   try {
     const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    
+
     if (!response.ok) {
       if (response.status === 401) {
         // Token expired or invalid
@@ -151,3 +151,41 @@ export const getChartUrl = (imageName) => {
 export const healthCheck = async () => {
   return await apiRequest('/', { skipAuth: true });
 };
+
+// Default export for convenience
+const api = {
+  get: async (endpoint) => await apiRequest(endpoint),
+  post: async (endpoint, data) => await apiRequest(endpoint, {
+    method: 'POST',
+    body: data ? JSON.stringify(data) : undefined,
+  }),
+  put: async (endpoint, data) => await apiRequest(endpoint, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  }),
+  delete: async (endpoint) => await apiRequest(endpoint, { method: 'DELETE' }),
+
+  // Re-export all named functions
+  getToken,
+  setToken,
+  removeToken,
+  register,
+  login,
+  getCurrentUser,
+  logout,
+  uploadFile,
+  analyzeFile,
+  getJobStatus,
+  getJobs,
+  previewJob,
+  deleteJob,
+  renameJob,
+  cancelJob,
+  visualizeJob,
+  askQuestion,
+  getChartUrl,
+  healthCheck,
+};
+
+export default api;
+

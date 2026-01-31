@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.ai import ask_groq
@@ -106,6 +107,20 @@ async def get_status(task_id: str, current_user: dict = Depends(get_current_user
 
     job = clean_json(job)
     return {"status": job.get("status"), "result": job.get("result"), "error": job.get("error")}
+
+
+@app.get("/api/charts/{chart_filename}")
+async def get_chart(chart_filename: str):
+    """
+    Serve chart JSON files from the static/charts directory.
+    Chart configs are stored on disk to avoid MongoDB document size limits.
+    """
+    chart_path = os.path.join("static", "charts", chart_filename)
+    
+    if not os.path.exists(chart_path):
+        raise HTTPException(status_code=404, detail="Chart not found")
+    
+    return FileResponse(chart_path, media_type="application/json")
 
 
 @app.get("/jobs")

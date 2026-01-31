@@ -13,7 +13,11 @@ pandas
 groq
 matplotlib
 seaborn
+plotly
 python-jose
 passlib[bcrypt]
 openpyxl
 xlrd
+kaleido
+scipy>=1.11.0
+statsmodels>=0.14.0
