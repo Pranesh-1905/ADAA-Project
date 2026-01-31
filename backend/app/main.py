@@ -7,8 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.ai import ask_groq
+from pydantic import BaseModel
+import pandas as pd
 from motor.motor_asyncio import AsyncIOMotorClient
-from app.worker import analyze_dataset, generate_visuals
+from app.worker import analyze_dataset, generate_visuals, celery
 from celery.result import AsyncResult
 from app.auth import get_current_user, get_password_hash, create_access_token, authenticate_user
 from fastapi.security import OAuth2PasswordRequestForm
@@ -112,6 +114,98 @@ async def get_jobs(current_user: dict = Depends(get_current_user)):
     jobs = [job async for job in cursor]
     cleaned_jobs = [clean_json(job) for job in jobs]
     return cleaned_jobs
+
+
+class RenameRequest(BaseModel):
+    filename: str
+
+
+@app.get("/preview/{task_id}")
+async def preview_dataset(task_id: str, current_user: dict = Depends(get_current_user)):
+    job = await db.analysis_jobs.find_one({"task_id": task_id, "user": current_user.get("username")})
+    if not job:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    filename = job["filename"]
+    file_path = os.path.join(UPLOAD_DIR, filename)
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    if filename.lower().endswith(('.xlsx', '.xls')):
+        df = pd.read_excel(file_path)
+    elif filename.lower().endswith('.csv'):
+        df = pd.read_csv(file_path)
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type")
+
+    df = df.head(10)
+    df = df.where(pd.notnull(df), None)
+    return {"columns": list(df.columns), "rows": df.to_dict(orient="records")}
+
+
+@app.delete("/jobs/{task_id}")
+async def delete_job(task_id: str, current_user: dict = Depends(get_current_user)):
+    job = await db.analysis_jobs.find_one({"task_id": task_id, "user": current_user.get("username")})
+    if not job:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    filename = job.get("filename")
+    if filename:
+        file_path = os.path.join(UPLOAD_DIR, filename)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+    await db.analysis_jobs.delete_one({"task_id": task_id, "user": current_user.get("username")})
+    return {"message": "Job deleted"}
+
+
+@app.post("/jobs/{task_id}/rename")
+async def rename_job(task_id: str, payload: RenameRequest, current_user: dict = Depends(get_current_user)):
+    job = await db.analysis_jobs.find_one({"task_id": task_id, "user": current_user.get("username")})
+    if not job:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    old_filename = job["filename"]
+    old_path = os.path.join(UPLOAD_DIR, old_filename)
+    if not os.path.exists(old_path):
+        raise HTTPException(status_code=404, detail="File not found")
+
+    new_filename = payload.filename.strip()
+    if not new_filename:
+        raise HTTPException(status_code=400, detail="New filename required")
+
+    old_root, old_ext = os.path.splitext(old_filename)
+    new_root, new_ext = os.path.splitext(new_filename)
+    if not new_ext:
+        new_filename = f"{new_filename}{old_ext}"
+    elif new_ext.lower() != old_ext.lower():
+        raise HTTPException(status_code=400, detail="File extension cannot be changed")
+
+    new_path = os.path.join(UPLOAD_DIR, new_filename)
+    if os.path.exists(new_path):
+        raise HTTPException(status_code=400, detail="A file with that name already exists")
+
+    os.rename(old_path, new_path)
+    await db.analysis_jobs.update_one(
+        {"task_id": task_id, "user": current_user.get("username")},
+        {"$set": {"filename": new_filename}}
+    )
+
+    return {"message": "Renamed", "filename": new_filename}
+
+
+@app.post("/jobs/{task_id}/cancel")
+async def cancel_job(task_id: str, current_user: dict = Depends(get_current_user)):
+    job = await db.analysis_jobs.find_one({"task_id": task_id, "user": current_user.get("username")})
+    if not job:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    AsyncResult(task_id, app=celery).revoke(terminate=True)
+    await db.analysis_jobs.update_one(
+        {"task_id": task_id, "user": current_user.get("username")},
+        {"$set": {"status": "failed", "error": "Cancelled by user"}}
+    )
+    return {"message": "Job cancelled"}
 
 @app.post("/ask")
 async def ask(question: str, task_id: str, current_user: dict = Depends(get_current_user)):

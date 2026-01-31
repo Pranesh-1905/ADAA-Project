@@ -9,7 +9,11 @@ import {
   analyzeFile,
   getJobStatus,
   visualizeJob,
-  askQuestion
+  askQuestion,
+  previewJob,
+  deleteJob,
+  renameJob,
+  cancelJob
 } from '../api';
 import {
   BarChart3,
@@ -29,7 +33,10 @@ import {
   Maximize2,
   Minimize2,
   Search,
-  Filter
+  Filter,
+  Trash2,
+  Pencil,
+  XCircle
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -41,6 +48,10 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'statistics', 'visualizations', 'insights'
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedChart, setExpandedChart] = useState(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [previewData, setPreviewData] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState('');
 
   const [chatMessage, setChatMessage] = useState('');
   const [chatHistory, setChatHistory] = useState([]);
@@ -77,23 +88,68 @@ export default function Dashboard() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatHistory]);
 
+  useEffect(() => {
+    const loadPreview = async () => {
+      if (!selectedJob || selectedJob.status !== 'completed') {
+        setPreviewData(null);
+        setPreviewError('');
+        return;
+      }
+
+      setPreviewLoading(true);
+      setPreviewError('');
+      try {
+        const preview = await previewJob(selectedJob.task_id);
+        setPreviewData(preview);
+      } catch (error) {
+        console.error('Preview load error:', error);
+        setPreviewError(error.message || 'Failed to load preview');
+        setPreviewData(null);
+      } finally {
+        setPreviewLoading(false);
+      }
+    };
+
+    loadPreview();
+  }, [selectedJob]);
+
   // --- Handlers ---
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleFiles = async (files) => {
+    const fileList = Array.from(files || []);
+    if (fileList.length === 0) return;
 
     setUploading(true);
-    try {
-      await uploadFile(file);
-      const { task_id } = await analyzeFile(file.name);
-      setAnalyzingIds(prev => new Set(prev).add(task_id));
-      checkStatusLoop(task_id);
-    } catch (error) {
-      alert("Upload/Analysis failed: " + error.message);
-    } finally {
-      setUploading(false);
+    for (const file of fileList) {
+      try {
+        await uploadFile(file);
+        const { task_id } = await analyzeFile(file.name);
+        setAnalyzingIds(prev => new Set(prev).add(task_id));
+        checkStatusLoop(task_id);
+      } catch (error) {
+        alert(`Upload/Analysis failed for ${file.name}: ${error.message}`);
+      }
     }
+    setUploading(false);
+  };
+
+  const handleFileUpload = async (e) => {
+    await handleFiles(e.target.files);
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    setIsDragActive(false);
+    await handleFiles(e.dataTransfer.files);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragActive(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragActive(false);
   };
 
   // Poll status for a specific new task until it's done or appears in jobs
@@ -182,6 +238,54 @@ export default function Dashboard() {
         return next;
       });
     }
+  };
+
+  const handleDeleteJob = async (job) => {
+    const confirmDelete = window.confirm(`Delete ${job.filename}? This will remove the file and its analysis.`);
+    if (!confirmDelete) return;
+    try {
+      await deleteJob(job.task_id);
+      if (selectedJob?.task_id === job.task_id) {
+        setSelectedJob(null);
+        setActiveTab('overview');
+      }
+      fetchJobs();
+    } catch (error) {
+      alert(`Delete failed: ${error.message}`);
+    }
+  };
+
+  const handleRenameJob = async (job) => {
+    const newName = window.prompt('Enter a new filename:', job.filename);
+    if (!newName || newName.trim() === job.filename) return;
+    try {
+      const res = await renameJob(job.task_id, newName.trim());
+      if (selectedJob?.task_id === job.task_id) {
+        setSelectedJob({ ...selectedJob, filename: res.filename });
+      }
+      fetchJobs();
+    } catch (error) {
+      alert(`Rename failed: ${error.message}`);
+    }
+  };
+
+  const handleCancelJob = async (job) => {
+    const confirmCancel = window.confirm(`Cancel processing for ${job.filename}?`);
+    if (!confirmCancel) return;
+    try {
+      await cancelJob(job.task_id);
+      fetchJobs();
+    } catch (error) {
+      alert(`Cancel failed: ${error.message}`);
+    }
+  };
+
+  const handleDownloadChart = (chart) => {
+    const link = document.createElement('a');
+    link.href = chart.data;
+    const safeName = (selectedJob?.filename || 'chart').replace(/[^a-z0-9-_]+/gi, '_');
+    link.download = `${safeName}-${chart.name}.png`;
+    link.click();
   };
 
   const handleSendMessage = async (e) => {
@@ -346,10 +450,13 @@ export default function Dashboard() {
               <h3 className="text-xl font-bold">Upload Data</h3>
             </div>
             <label
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
               className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-xl cursor-pointer transition-all hover:border-opacity-100"
               style={{
-                borderColor: 'var(--border)',
-                background: 'var(--surface-secondary)',
+                borderColor: isDragActive ? 'var(--primary)' : 'var(--border)',
+                background: isDragActive ? 'var(--surface)' : 'var(--surface-secondary)',
                 opacity: uploading ? 0.6 : 1,
               }}
             >
@@ -362,7 +469,7 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <Upload size={32} className="mb-3" style={{ color: 'var(--text-tertiary)' }} />
-                    <p className="text-sm font-semibold">Click to upload file</p>
+                    <p className="text-sm font-semibold">{isDragActive ? 'Drop files to upload' : 'Click or drag files here'}</p>
                     <p className="text-xs mt-1" style={{ color: 'var(--text-tertiary)' }}>CSV or Excel files up to 100MB</p>
                   </>
                 )}
@@ -373,6 +480,7 @@ export default function Dashboard() {
                 accept=".csv,.xlsx,.xls"
                 onChange={handleFileUpload}
                 disabled={uploading}
+                multiple
               />
             </label>
           </motion.div>
@@ -437,6 +545,42 @@ export default function Dashboard() {
                       <span>{job.result?.rows || 0} rows</span>
                       <span>{job.result?.columns?.length || 0} cols</span>
                     </div>
+                    {(job.status !== 'completed' && job.status !== 'failed') && (
+                      <div className="mt-2">
+                        <div className="h-1 w-full rounded-full" style={{ background: 'var(--surface-secondary)' }}>
+                          <div className="h-1 rounded-full animate-pulse" style={{ width: '60%', background: 'var(--primary)' }} />
+                        </div>
+                        <div className="mt-1 text-[11px]" style={{ color: 'var(--text-tertiary)' }}>Processing...</div>
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2 mt-3">
+                      {(job.status !== 'completed' && job.status !== 'failed') && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleCancelJob(job); }}
+                          className="p-1.5 rounded-lg hover:shadow-sm"
+                          style={{ background: 'var(--surface-secondary)' }}
+                          title="Cancel"
+                        >
+                          <XCircle size={14} />
+                        </button>
+                      )}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleRenameJob(job); }}
+                        className="p-1.5 rounded-lg hover:shadow-sm"
+                        style={{ background: 'var(--surface-secondary)' }}
+                        title="Rename"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteJob(job); }}
+                        className="p-1.5 rounded-lg hover:shadow-sm"
+                        style={{ background: 'var(--surface-secondary)' }}
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </motion.div>
                 ))
               )}
@@ -457,7 +601,7 @@ export default function Dashboard() {
               >
                 {/* Tabs */}
                 <div className="flex gap-2 border-b" style={{ borderColor: 'var(--border)' }}>
-                  {['overview', 'statistics', 'visualizations', 'insights'].map(tab => (
+                  {['overview', 'preview', 'statistics', 'visualizations', 'insights'].map(tab => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -468,6 +612,7 @@ export default function Dashboard() {
                       }}
                     >
                       {tab === 'overview' && 'Overview'}
+                      {tab === 'preview' && 'Preview'}
                       {tab === 'statistics' && 'Statistics'}
                       {tab === 'visualizations' && 'Visualizations'}
                       {tab === 'insights' && 'AI Insights'}
@@ -501,7 +646,18 @@ export default function Dashboard() {
                       <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
                         <TrendingUp size={20} /> Quick Actions
                       </h3>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
+                        <button
+                          onClick={() => setActiveTab('preview')}
+                          className="p-4 rounded-lg border-2 border-dashed hover:border-solid transition-all text-left"
+                          style={{ borderColor: 'var(--border)', background: 'var(--surface-secondary)' }}
+                        >
+                          <FileText size={24} className="mb-2" style={{ color: 'var(--primary)' }} />
+                          <p className="font-semibold text-sm">Preview Data</p>
+                          <p className="text-xs" style={{ color: 'var(--text-tertiary)' }}>
+                            First 10 rows
+                          </p>
+                        </button>
                         <button
                           onClick={() => setActiveTab('visualizations')}
                           className="p-4 rounded-lg border-2 border-dashed hover:border-solid transition-all text-left"
@@ -526,6 +682,49 @@ export default function Dashboard() {
                         </button>
                       </div>
                     </div>
+                  </motion.div>
+                )}
+
+                {/* Tab: Preview */}
+                {activeTab === 'preview' && (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-bold flex items-center gap-2">
+                        <FileText size={20} /> Dataset Preview
+                      </h3>
+                      {previewLoading && (
+                        <span className="text-xs" style={{ color: 'var(--text-tertiary)' }}>Loading...</span>
+                      )}
+                    </div>
+                    {previewError && (
+                      <p className="text-sm" style={{ color: 'var(--danger)' }}>{previewError}</p>
+                    )}
+                    {previewData?.rows?.length ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                              {previewData.columns.map((col) => (
+                                <th key={col} className="text-left py-2 px-3 font-bold whitespace-nowrap">{col}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewData.rows.map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
+                                {previewData.columns.map((col) => (
+                                  <td key={col} className="py-2 px-3 text-xs whitespace-nowrap">
+                                    {row[col] === null || row[col] === undefined ? '-' : String(row[col])}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : !previewLoading ? (
+                      <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>No preview available</p>
+                    ) : null}
                   </motion.div>
                 )}
 
@@ -560,11 +759,21 @@ export default function Dashboard() {
                               style={{ borderColor: 'var(--border)' }}
                             >
                               <div className="p-3 border-b" style={{ background: 'var(--surface-secondary)', borderColor: 'var(--border)' }}>
-                                <p className="font-semibold text-sm">
-                                  {chart.name.includes('countplot') && '📊 Column Value Counts'}
-                                  {chart.name.includes('distribution') && '📈 Distribution Analysis'}
-                                  {chart.name.includes('heatmap') && '🔥 Correlation Heatmap'}
-                                </p>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="font-semibold text-sm">
+                                    {chart.name.includes('countplot') && '📊 Column Value Counts'}
+                                    {chart.name.includes('distribution') && '📈 Distribution Analysis'}
+                                    {chart.name.includes('heatmap') && '🔥 Correlation Heatmap'}
+                                  </p>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDownloadChart(chart); }}
+                                    className="p-1.5 rounded-lg hover:shadow-sm"
+                                    style={{ background: 'var(--surface)' }}
+                                    title="Download"
+                                  >
+                                    <Download size={14} />
+                                  </button>
+                                </div>
                               </div>
                               <img
                                 src={chart.data}

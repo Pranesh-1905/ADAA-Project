@@ -110,6 +110,25 @@ export const getJobs = async () => {
   return await apiRequest('/jobs');
 };
 
+export const previewJob = async (taskId) => {
+  return await apiRequest(`/preview/${taskId}`);
+};
+
+export const deleteJob = async (taskId) => {
+  return await apiRequest(`/jobs/${taskId}`, { method: 'DELETE' });
+};
+
+export const renameJob = async (taskId, filename) => {
+  return await apiRequest(`/jobs/${taskId}/rename`, {
+    method: 'POST',
+    body: JSON.stringify({ filename }),
+  });
+};
+
+export const cancelJob = async (taskId) => {
+  return await apiRequest(`/jobs/${taskId}/cancel`, { method: 'POST' });
+};
+
 export const visualizeJob = async (taskId) => {
   return await apiRequest(`/visualize/${taskId}`);
 };
