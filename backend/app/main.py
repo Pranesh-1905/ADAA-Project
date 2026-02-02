@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.ai import ask_groq
@@ -121,6 +121,49 @@ async def get_chart(chart_filename: str):
         raise HTTPException(status_code=404, detail="Chart not found")
     
     return FileResponse(chart_path, media_type="application/json")
+
+
+@app.get("/api/analysis/{task_id}/stream")
+async def stream_analysis_events(task_id: str, token: str = None):
+    """
+    Server-Sent Events (SSE) endpoint for real-time agent activity updates.
+    
+    Clients can subscribe to this endpoint to receive live updates as agents
+    execute their analysis tasks.
+    
+    Args:
+        task_id: The Celery task ID to monitor
+        token: JWT token for authentication (query param since EventSource doesn't support headers)
+        
+    Returns:
+        StreamingResponse with SSE events
+    """
+    from app.event_stream import event_generator
+    from app.auth import verify_token
+    
+    # Verify token
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication token required")
+    
+    try:
+        current_user = verify_token(token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    
+    # Verify the task belongs to the current user
+    job = await db.analysis_jobs.find_one({"task_id": task_id, "user": current_user.get("username")})
+    if not job:
+        raise HTTPException(status_code=404, detail="Task not found or access denied")
+    
+    return StreamingResponse(
+        event_generator(task_id),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
 
 
 @app.get("/jobs")
@@ -258,6 +301,96 @@ async def ask(question: str, task_id: str, current_user: dict = Depends(get_curr
     except Exception as e:
         logger.error(f"Error in ask endpoint: {str(e)}")
         raise HTTPException(status_code=503, detail=f"Failed to generate answer: {str(e)}")
+
+
+class QueryRequest(BaseModel):
+    question: str
+    task_id: str
+
+
+@app.post("/api/query")
+async def query_agent(payload: QueryRequest, current_user: dict = Depends(get_current_user)):
+    """
+    Query Agent endpoint - LLM-powered natural language Q&A about analyzed data.
+    
+    This endpoint uses the Query Agent to provide context-aware responses
+    based on the complete analysis results from all agents.
+    """
+    from app.agents.query_agent import QueryAgent
+    
+    # Fetch the analysis job
+    job = await db.analysis_jobs.find_one({
+        "task_id": payload.task_id, 
+        "user": current_user.get("username")
+    })
+    
+    if not job:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    
+    # Check if analysis is complete
+    if job.get("status") != "completed":
+        raise HTTPException(
+            status_code=202, 
+            detail="Analysis still processing. Please wait for completion."
+        )
+    
+    # Get the analysis results
+    result = job.get("result", {})
+    
+    if not result:
+        raise HTTPException(status_code=400, detail="No analysis results available")
+    
+    try:
+        # Initialize Query Agent
+        query_agent = QueryAgent()
+        
+        # Build data summary from result
+        data_summary = {
+            "num_rows": result.get("rows", 0),
+            "num_columns": len(result.get("columns", [])),
+            "columns": result.get("columns", []),
+            "dtypes": result.get("dtypes", {}),
+        }
+        
+        # Store the data summary in the agent
+        query_agent.data_summary = data_summary
+        
+        # Extract agent analysis results (this is where the actual agent outputs are stored)
+        agent_analysis = result.get("agent_analysis", {})
+        
+        # Build context from all agent results with correct structure
+        context = {
+            "data_profiler": agent_analysis.get("profiler", {}),
+            "insight_discovery": agent_analysis.get("insights", {}),
+            "visualization": agent_analysis.get("visualizations", {}),
+            "recommendation": agent_analysis.get("recommendations", {})
+        }
+        
+        # Store context in the agent
+        query_agent.analysis_context = context
+        
+        # Answer the question
+        answer_result = query_agent.answer_question(
+            question=payload.question,
+            data=None,  # We're using the stored summary
+            context=context
+        )
+        
+        return {
+            "success": True,
+            "answer": answer_result.get("answer"),
+            "confidence": answer_result.get("confidence"),
+            "source": answer_result.get("source"),
+            "model": answer_result.get("model"),
+            "timestamp": answer_result.get("timestamp"),
+            "note": answer_result.get("note")
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to process query: {str(e)}"
+        )
 from app.worker import generate_visuals
 
 @app.get("/visualize/{task_id}")

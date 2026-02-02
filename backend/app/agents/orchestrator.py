@@ -61,7 +61,8 @@ class AgentOrchestrator:
         self,
         data: Any,
         context: Optional[Dict[str, Any]] = None,
-        agents_to_run: Optional[List[str]] = None
+        agents_to_run: Optional[List[str]] = None,
+        event_callback: Optional[Any] = None
     ) -> Dict[str, Any]:
         """
         Run analysis using specified agents or all agents.
@@ -70,6 +71,7 @@ class AgentOrchestrator:
             data: Data to analyze (DataFrame or file path)
             context: Additional context and parameters
             agents_to_run: List of agent names to run (None = all agents)
+            event_callback: Optional callback for real-time event streaming
             
         Returns:
             Dictionary containing results from all agents
@@ -77,6 +79,12 @@ class AgentOrchestrator:
         self.status = AgentStatus.RUNNING
         start_time = datetime.utcnow()
         context = context or {}
+        
+        # Register event callback with all agents if provided
+        if event_callback:
+            for agent in self.agents.values():
+                agent.set_event_callback(event_callback)
+            logger.info("Event callbacks registered with all agents")
         
         logger.info(f"Starting orchestrated analysis with {len(self.agents)} agents")
         

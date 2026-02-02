@@ -96,6 +96,26 @@ def analyze_dataset(self, filename, user: str):
         orchestrator = get_orchestrator()
         orchestrator.reset()  # Reset for fresh analysis
         
+        # Create event callback for real-time streaming
+        def create_event_callback(task_id):
+            """Create a callback that publishes events to Redis"""
+            def callback(activity):
+                try:
+                    # Import here to avoid circular dependency
+                    import asyncio
+                    from app.event_stream import publish_event_async
+                    
+                    # Get the current event loop
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        # Schedule the async publish as a background task
+                        loop.create_task(publish_event_async(task_id, activity.to_dict()))
+                except Exception as e:
+                    logger.error(f"Failed to publish event: {e}")
+            return callback
+        
+        event_callback = create_event_callback(self.request.id)
+        
         # Run all agents asynchronously
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -103,7 +123,8 @@ def analyze_dataset(self, filename, user: str):
         agent_results = loop.run_until_complete(
             orchestrator.analyze(
                 data=df,
-                context={"filename": filename, "user": user}
+                context={"filename": filename, "user": user},
+                event_callback=event_callback
             )
         )
         

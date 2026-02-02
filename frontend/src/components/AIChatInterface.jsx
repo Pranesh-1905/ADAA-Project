@@ -36,13 +36,18 @@ const AIChatInterface = ({ taskId }) => {
         setLoading(true);
 
         try {
-            const response = await api.askQuestion(questionText, taskId);
+            // Use the new Query Agent endpoint
+            const response = await api.queryAgent(questionText, taskId);
 
             const assistantMessage = {
                 id: Date.now() + 1,
                 role: 'assistant',
                 content: response.answer,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                confidence: response.confidence,
+                source: response.source,
+                model: response.model,
+                note: response.note
             };
 
             setMessages(prev => [...prev, assistantMessage]);
@@ -156,9 +161,49 @@ const AIChatInterface = ({ taskId }) => {
                                         </ReactMarkdown>
                                     </div>
                                 )}
-                                <p className="text-xs opacity-70 mt-2">
-                                    {new Date(message.timestamp).toLocaleTimeString()}
-                                </p>
+
+                                {/* Metadata footer */}
+                                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                                    <p className="text-xs opacity-70">
+                                        {new Date(message.timestamp).toLocaleTimeString()}
+                                    </p>
+
+                                    {/* Show confidence and source for assistant messages */}
+                                    {message.role === 'assistant' && !message.isError && (
+                                        <>
+                                            {message.confidence !== undefined && (
+                                                <span
+                                                    className="text-xs px-2 py-0.5 rounded-full"
+                                                    style={{
+                                                        background: message.confidence > 0.7 ? 'var(--success-bg)' : 'var(--warning-bg)',
+                                                        color: message.confidence > 0.7 ? 'var(--success)' : 'var(--warning)'
+                                                    }}
+                                                >
+                                                    {Math.round(message.confidence * 100)}% confident
+                                                </span>
+                                            )}
+
+                                            {message.source && (
+                                                <span
+                                                    className="text-xs px-2 py-0.5 rounded-full"
+                                                    style={{
+                                                        background: message.source === 'llm' ? 'var(--primary-bg)' : 'var(--surface-tertiary)',
+                                                        color: message.source === 'llm' ? 'var(--primary)' : 'var(--text-secondary)'
+                                                    }}
+                                                >
+                                                    {message.source === 'llm' ? '🤖 AI-Powered' : '📊 Rule-Based'}
+                                                </span>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Show note if available */}
+                                {message.note && (
+                                    <p className="text-xs mt-2 opacity-60 italic">
+                                        💡 {message.note}
+                                    </p>
+                                )}
                             </div>
 
                             {message.role === 'user' && (

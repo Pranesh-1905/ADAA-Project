@@ -142,6 +142,13 @@ export const askQuestion = async (question, taskId) => {
   );
 };
 
+export const queryAgent = async (question, taskId) => {
+  return await apiRequest('/api/query', {
+    method: 'POST',
+    body: JSON.stringify({ question, task_id: taskId }),
+  });
+};
+
 // Chart endpoint
 export const getChartUrl = (imageName) => {
   return `${API_BASE_URL}/charts/${imageName}`;
@@ -183,6 +190,7 @@ const api = {
   cancelJob,
   visualizeJob,
   askQuestion,
+  queryAgent,
   getChartUrl,
   healthCheck,
 };

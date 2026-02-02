@@ -5,44 +5,135 @@ import { motion, AnimatePresence } from 'framer-motion';
 const AgentActivityFeed = ({ taskId }) => {
     const [activities, setActivities] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [connected, setConnected] = useState(false);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
-        // Mock data for now - will be replaced with real agent activity in Phase 2
-        const mockActivities = [
-            {
-                id: 1,
-                agent: 'Data Profiler Agent',
-                action: 'Analyzing data quality',
-                status: 'completed',
-                timestamp: new Date(Date.now() - 5000).toISOString(),
-                icon: Search,
-                color: 'blue'
-            },
-            {
-                id: 2,
-                agent: 'Insight Discovery Agent',
-                action: 'Detecting patterns and trends',
-                status: 'completed',
-                timestamp: new Date(Date.now() - 3000).toISOString(),
-                icon: TrendingUp,
-                color: 'purple'
-            },
-            {
-                id: 3,
-                agent: 'Visualization Agent',
-                action: 'Generating charts',
-                status: 'running',
-                timestamp: new Date(Date.now() - 1000).toISOString(),
-                icon: BarChart3,
-                color: 'green'
-            }
-        ];
-
-        // Simulate loading
-        setTimeout(() => {
-            setActivities(mockActivities);
+        if (!taskId) {
             setLoading(false);
-        }, 1000);
+            return;
+        }
+
+        let eventSource = null;
+        let reconnectTimeout = null;
+
+        const connectToStream = () => {
+            try {
+                // Get auth token
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    console.error('No authentication token found');
+                    setError('Not authenticated');
+                    setLoading(false);
+                    return;
+                }
+
+                // Create EventSource connection
+                const url = `http://127.0.0.1:8000/api/analysis/${taskId}/stream?token=${token}`;
+                console.log('Connecting to SSE:', url.replace(token, 'TOKEN_HIDDEN'));
+                eventSource = new EventSource(url);
+
+                eventSource.onopen = () => {
+                    console.log('SSE connection established');
+                    setConnected(true);
+                    setLoading(false);
+                    setError(null);
+                };
+
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        if (data.type === 'connected') {
+                            console.log('Connected to task:', data.task_id);
+                            return;
+                        }
+
+                        if (data.type === 'error') {
+                            setError(data.message);
+                            return;
+                        }
+
+                        // Add new activity to the list
+                        setActivities(prev => {
+                            // Avoid duplicates by checking timestamp + agent_name
+                            const isDuplicate = prev.some(
+                                a => a.timestamp === data.timestamp && a.agent_name === data.agent_name
+                            );
+                            if (isDuplicate) return prev;
+
+                            return [...prev, {
+                                id: `${data.agent_name}-${data.timestamp}`,
+                                agent: data.agent_name,
+                                action: data.action,
+                                status: data.status,
+                                timestamp: data.timestamp,
+                                details: data.details,
+                                icon: getIconForAgent(data.agent_name),
+                                color: getColorForAgent(data.agent_name)
+                            }];
+                        });
+                    } catch (err) {
+                        console.error('Error parsing SSE message:', err);
+                    }
+                };
+
+                eventSource.onerror = (err) => {
+                    console.error('SSE error:', err);
+                    setConnected(false);
+
+                    // Close the connection
+                    if (eventSource) {
+                        eventSource.close();
+                    }
+
+                    // Attempt to reconnect after 3 seconds
+                    reconnectTimeout = setTimeout(() => {
+                        console.log('Attempting to reconnect...');
+                        connectToStream();
+                    }, 3000);
+                };
+
+            } catch (err) {
+                console.error('Failed to connect to SSE:', err);
+                setError('Failed to connect to event stream');
+                setLoading(false);
+            }
+        };
+
+        // Helper function to map agent names to icons
+        const getIconForAgent = (agentName) => {
+            const iconMap = {
+                'data_profiler': Search,
+                'insight_discovery': TrendingUp,
+                'visualization': BarChart3,
+                'recommendation': Bot
+            };
+            return iconMap[agentName] || Activity;
+        };
+
+        // Helper function to map agent names to colors
+        const getColorForAgent = (agentName) => {
+            const colorMap = {
+                'data_profiler': 'blue',
+                'insight_discovery': 'purple',
+                'visualization': 'green',
+                'recommendation': 'orange'
+            };
+            return colorMap[agentName] || 'blue';
+        };
+
+        connectToStream();
+
+        // Cleanup on unmount
+        return () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+            if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+            }
+        };
     }, [taskId]);
 
     const getAgentColor = (color) => {
@@ -147,11 +238,24 @@ const AgentActivityFeed = ({ taskId }) => {
             </div>
 
             {/* Coming Soon Notice */}
-            <div className="mt-6 p-4 rounded-lg" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
-                <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
-                    <strong>Phase 2:</strong> Real-time agent collaboration will be implemented with live updates from Data Profiler, Insight Discovery, Visualization, Query, and Recommendation agents.
-                </p>
-            </div>
+            {error && (
+                <div className="mt-6 p-4 rounded-lg" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+                    <p className="text-sm text-red-500">
+                        <strong>Error:</strong> {error}
+                    </p>
+                </div>
+            )}
+
+            {!error && (
+                <div className="mt-6 p-4 rounded-lg" style={{ background: 'var(--surface-secondary)', border: '1px solid var(--border)' }}>
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></div>
+                        <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+                            <strong>Real-time updates:</strong> {connected ? 'Connected' : 'Disconnected'}
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

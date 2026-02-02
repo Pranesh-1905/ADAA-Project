@@ -1,8 +1,11 @@
 import { useState } from 'react';
-import { BarChart3, MessageSquare, FileText, TrendingUp, Download, X } from 'lucide-react';
+import { BarChart3, MessageSquare, FileText, TrendingUp, Download, X, Lightbulb, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChartGallery from './ChartGallery';
 import AIChatInterface from './AIChatInterface';
+import InsightsPanel from './InsightsPanel';
+import RecommendationsPanel from './RecommendationsPanel';
+import DataQualityDashboard from './DataQualityDashboard';
 
 const AnalysisResultsViewer = ({ job, onClose }) => {
     const [activeTab, setActiveTab] = useState('summary');
@@ -18,7 +21,9 @@ const AnalysisResultsViewer = ({ job, onClose }) => {
 
     const tabs = [
         { id: 'summary', label: 'Summary Stats', icon: FileText },
+        { id: 'quality', label: 'Data Quality', icon: Database },
         { id: 'insights', label: 'Insights', icon: TrendingUp },
+        { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
         { id: 'charts', label: 'Charts', icon: BarChart3 },
         { id: 'ask', label: 'Ask AI', icon: MessageSquare },
     ];
@@ -214,21 +219,42 @@ const AnalysisResultsViewer = ({ job, onClose }) => {
                             </motion.div>
                         )}
 
+                        {activeTab === 'quality' && (
+                            <motion.div
+                                key="quality"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                            >
+                                <DataQualityDashboard
+                                    qualityData={job.result?.agent_analysis?.profiler || {}}
+                                />
+                            </motion.div>
+                        )}
+
                         {activeTab === 'insights' && (
                             <motion.div
                                 key="insights"
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
-                                className="space-y-4"
                             >
-                                <div className="text-center py-12" style={{ color: 'var(--text-tertiary)' }}>
-                                    <TrendingUp className="h-12 w-12 mx-auto mb-4" style={{ opacity: 0.5 }} />
-                                    <p className="text-lg font-medium mb-2">AI Insights Coming Soon</p>
-                                    <p className="text-sm">
-                                        Insight Discovery Agent will be implemented in Phase 2
-                                    </p>
-                                </div>
+                                <InsightsPanel
+                                    insights={job.result?.agent_analysis?.insights?.insights || []}
+                                />
+                            </motion.div>
+                        )}
+
+                        {activeTab === 'recommendations' && (
+                            <motion.div
+                                key="recommendations"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                            >
+                                <RecommendationsPanel
+                                    recommendations={job.result?.agent_analysis?.recommendations?.recommendations || []}
+                                />
                             </motion.div>
                         )}
 

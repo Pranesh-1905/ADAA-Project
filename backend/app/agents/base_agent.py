@@ -6,7 +6,7 @@ It defines the common interface and shared functionality for all agents.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime
 from enum import Enum
 import logging
@@ -75,6 +75,7 @@ class BaseAgent(ABC):
         self.error: Optional[str] = None
         self.start_time: Optional[datetime] = None
         self.end_time: Optional[datetime] = None
+        self.on_activity: Optional[Callable[[AgentActivity], None]] = None
         
         logger.info(f"Initialized agent: {self.name}")
     
@@ -114,6 +115,13 @@ class BaseAgent(ABC):
         )
         self.activities.append(activity)
         logger.info(f"[{self.name}] {action} - {status.value}")
+        
+        # Call the event callback if registered (for real-time streaming)
+        if self.on_activity:
+            try:
+                self.on_activity(activity)
+            except Exception as e:
+                logger.error(f"Error in on_activity callback: {e}")
     
     async def execute(self, data: Any, context: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -225,6 +233,16 @@ class BaseAgent(ABC):
         
         end = self.end_time or datetime.utcnow()
         return (end - self.start_time).total_seconds()
+    
+    def set_event_callback(self, callback: Callable[[AgentActivity], None]):
+        """
+        Set a callback function to be called when activities are emitted.
+        
+        Args:
+            callback: Function that takes an AgentActivity and publishes it
+        """
+        self.on_activity = callback
+        logger.debug(f"Event callback registered for {self.name}")
     
     def reset(self):
         """Reset the agent to its initial state"""
