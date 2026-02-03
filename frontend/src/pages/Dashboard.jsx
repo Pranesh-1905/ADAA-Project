@@ -36,7 +36,9 @@ import {
   Filter,
   Trash2,
   Pencil,
-  XCircle
+  XCircle,
+  Lightbulb,
+  Flame
 } from 'lucide-react';
 
 export default function Dashboard() {
@@ -194,7 +196,7 @@ export default function Dashboard() {
       setAnalyzingIds(prev => new Set(prev).add(job.task_id));
       setSelectedJob(job); // Ensure we're viewing the right job
       await visualizeJob(job.task_id);
-      
+
       // Poll for charts
       let attempts = 0;
       const maxAttempts = 30; // Up to 30 attempts (60 seconds)
@@ -203,7 +205,7 @@ export default function Dashboard() {
         try {
           const updated = await getJobs();
           const job_with_charts = updated.find(j => j.task_id === job.task_id);
-          
+
           if (job_with_charts?.charts && job_with_charts.charts.length > 0) {
             // Charts are ready! Update UI immediately
             setSelectedJob(job_with_charts);
@@ -294,9 +296,9 @@ export default function Dashboard() {
 
     // Check if analysis is completed
     if (selectedJob.status !== 'completed') {
-      setChatHistory(prev => [...prev, { 
-        role: 'error', 
-        content: "Analysis is still processing. Please wait for it to complete before asking questions." 
+      setChatHistory(prev => [...prev, {
+        role: 'error',
+        content: "Analysis is still processing. Please wait for it to complete before asking questions."
       }]);
       return;
     }
@@ -760,10 +762,25 @@ export default function Dashboard() {
                             >
                               <div className="p-3 border-b" style={{ background: 'var(--surface-secondary)', borderColor: 'var(--border)' }}>
                                 <div className="flex items-center justify-between gap-2">
-                                  <p className="font-semibold text-sm">
-                                    {chart.name.includes('countplot') && '📊 Column Value Counts'}
-                                    {chart.name.includes('distribution') && '📈 Distribution Analysis'}
-                                    {chart.name.includes('heatmap') && '🔥 Correlation Heatmap'}
+                                  <p className="font-semibold text-sm flex items-center gap-2">
+                                    {chart.name.includes('countplot') && (
+                                      <>
+                                        <BarChart2 className="h-4 w-4" />
+                                        Column Value Counts
+                                      </>
+                                    )}
+                                    {chart.name.includes('distribution') && (
+                                      <>
+                                        <TrendingUp className="h-4 w-4" />
+                                        Distribution Analysis
+                                      </>
+                                    )}
+                                    {chart.name.includes('heatmap') && (
+                                      <>
+                                        <Flame className="h-4 w-4" />
+                                        Correlation Heatmap
+                                      </>
+                                    )}
                                   </p>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); handleDownloadChart(chart); }}
@@ -873,24 +890,27 @@ export default function Dashboard() {
                           <div className="mt-6 flex flex-wrap justify-center gap-2">
                             <button
                               onClick={() => setChatMessage("What are the key insights from this data?")}
-                              className="text-xs px-3 py-2 rounded-lg hover:shadow-md transition-all"
+                              className="text-xs px-3 py-2 rounded-lg hover:shadow-md transition-all flex items-center gap-2"
                               style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                             >
-                              💡 Key Insights
+                              <Lightbulb className="h-3.5 w-3.5" />
+                              Key Insights
                             </button>
                             <button
                               onClick={() => setChatMessage("Summarize the main statistics")}
-                              className="text-xs px-3 py-2 rounded-lg hover:shadow-md transition-all"
+                              className="text-xs px-3 py-2 rounded-lg hover:shadow-md transition-all flex items-center gap-2"
                               style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                             >
-                              📊 Summarize Stats
+                              <BarChart3 className="h-3.5 w-3.5" />
+                              Summarize Stats
                             </button>
                             <button
                               onClick={() => setChatMessage("What patterns do you see?")}
-                              className="text-xs px-3 py-2 rounded-lg hover:shadow-md transition-all"
+                              className="text-xs px-3 py-2 rounded-lg hover:shadow-md transition-all flex items-center gap-2"
                               style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
                             >
-                              🔍 Find Patterns
+                              <Search className="h-3.5 w-3.5" />
+                              Find Patterns
                             </button>
                           </div>
                         </div>

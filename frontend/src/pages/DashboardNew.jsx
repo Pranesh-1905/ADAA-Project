@@ -10,7 +10,7 @@ import ShareAnalysisModal from '../components/ShareAnalysisModal';
 import CommentsPanel from '../components/CommentsPanel';
 // VersionHistory disabled
 import { uploadFile, analyzeFile } from '../api';
-import { BarChart3, Activity, Plus, Share2, MessageSquare, History } from 'lucide-react';
+import { BarChart3, Activity, Plus, Share2, MessageSquare, History, Search, Lightbulb, Bot, CheckCircle, XCircle } from 'lucide-react';
 
 export default function DashboardNew() {
     const [selectedJob, setSelectedJob] = useState(null);
@@ -51,15 +51,15 @@ export default function DashboardNew() {
             }
 
             const result = await response.json();
-            alert('✅ Custom chart saved successfully!');
-            
+            alert('Chart saved successfully!');
+
             // Close the chart builder
             setShowChartBuilder(false);
             setChartBuilderJob(null);
-            
+
             // Refresh to show the new chart
             setRefreshTrigger(prev => prev + 1);
-            
+
             // If the job is currently selected, update it
             if (selectedJob?.task_id === chartBuilderJob.task_id) {
                 // Re-fetch the updated job
@@ -74,10 +74,10 @@ export default function DashboardNew() {
                     }
                 }
             }
-            
+
         } catch (error) {
             console.error('Failed to save custom chart:', error);
-            alert(`❌ Failed to save chart: ${error.message}`);
+            alert(`Failed to save chart: ${error.message}`);
         }
     };
 
@@ -220,7 +220,9 @@ export default function DashboardNew() {
                                         </p>
                                         <div className="grid grid-cols-2 gap-3 text-left">
                                             <div className="card-sm p-3" style={{ background: 'var(--surface)' }}>
-                                                <div className="text-xl mb-1">🔍</div>
+                                                <div className="mb-2">
+                                                    <Search className="h-5 w-5" style={{ color: 'var(--primary)' }} />
+                                                </div>
                                                 <h3 className="font-semibold text-sm mb-0.5" style={{ color: 'var(--text)' }}>
                                                     Profile Data
                                                 </h3>
@@ -229,7 +231,9 @@ export default function DashboardNew() {
                                                 </p>
                                             </div>
                                             <div className="card-sm p-3" style={{ background: 'var(--surface)' }}>
-                                                <div className="text-xl mb-1">💡</div>
+                                                <div className="mb-2">
+                                                    <Lightbulb className="h-5 w-5" style={{ color: 'var(--primary)' }} />
+                                                </div>
                                                 <h3 className="font-semibold text-sm mb-0.5" style={{ color: 'var(--text)' }}>
                                                     Find Insights
                                                 </h3>
@@ -238,7 +242,9 @@ export default function DashboardNew() {
                                                 </p>
                                             </div>
                                             <div className="card-sm p-3" style={{ background: 'var(--surface)' }}>
-                                                <div className="text-xl mb-1">📊</div>
+                                                <div className="mb-2">
+                                                    <BarChart3 className="h-5 w-5" style={{ color: 'var(--primary)' }} />
+                                                </div>
                                                 <h3 className="font-semibold text-sm mb-0.5" style={{ color: 'var(--text)' }}>
                                                     Create Charts
                                                 </h3>
@@ -247,7 +253,9 @@ export default function DashboardNew() {
                                                 </p>
                                             </div>
                                             <div className="card-sm p-3" style={{ background: 'var(--surface)' }}>
-                                                <div className="text-xl mb-1">🤖</div>
+                                                <div className="mb-2">
+                                                    <Bot className="h-5 w-5" style={{ color: 'var(--primary)' }} />
+                                                </div>
                                                 <h3 className="font-semibold text-sm mb-0.5" style={{ color: 'var(--text)' }}>
                                                     Get Advice
                                                 </h3>

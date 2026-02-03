@@ -209,3 +209,44 @@ textarea {
     border-color var(--transition-fast),
     box-shadow var(--transition-fast);
 }
+/* ===== PERFORMANCE OPTIMIZATIONS ===== */
+
+/* Smooth scroll behavior */
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Better focus states */
+button:focus-visible, a:focus-visible, input:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+*:focus { outline: none; }
+
+/* Smooth hover effects */
+button:not(:disabled):hover, a:hover {
+  transform: translateY(-1px);
+}
+
+/* Hardware acceleration */
+.card, .btn { will-change: transform; transform: translateZ(0); }
+
+/* Reduce motion support */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* Loading skeleton */
+@keyframes skeleton-loading {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-secondary) 0px, var(--surface-tertiary) 40px, var(--surface-secondary) 80px);
+  background-size: 200px 100%;
+  animation: skeleton-loading 1.2s ease-in-out infinite;
+}

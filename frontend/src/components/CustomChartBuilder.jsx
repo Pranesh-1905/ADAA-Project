@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Plus, X, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, X, TrendingUp, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import Plot from 'react-plotly.js';
 
@@ -19,6 +19,7 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
   const [dataValues, setDataValues] = useState({ x: [], y: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const debounceTimerRef = useRef(null);
 
   useEffect(() => {
     if (selectedDataset) {
@@ -35,12 +36,12 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
       const response = await fetch(`http://127.0.0.1:8000/dataset-columns/${encodeURIComponent(filename)}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to load columns' }));
         throw new Error(errorData.detail);
       }
-      
+
       const data = await response.json();
       setColumns(data.columns || []);
     } catch (error) {
@@ -52,54 +53,92 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
     }
   };
 
+  // Debounced preview generation
   useEffect(() => {
-    if (chartConfig.xColumn && chartConfig.yColumn && selectedDataset) {
-      generatePreview();
+    const shouldGeneratePreview = chartConfig.xColumn && selectedDataset &&
+      (chartConfig.chartType === 'histogram' || chartConfig.yColumn);
+
+    if (shouldGeneratePreview) {
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+
+      // Set new timer for debounced preview
+      debounceTimerRef.current = setTimeout(() => {
+        generatePreview();
+      }, 500); // 500ms debounce
     }
+
+    // Cleanup on unmount
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
   }, [chartConfig, selectedDataset]);
 
-  const generatePreview = async () => {
+  const generatePreview = useCallback(async () => {
     try {
       setError(null);
       setLoading(true);
-      
+
       const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Authentication required. Please log in again.');
+      }
+
       const payload = {
         filename: selectedDataset,
         x_column: chartConfig.xColumn,
         chart_type: chartConfig.chartType,
       };
-      
+
       // Only include y_column if chart type requires it
       if (chartConfig.chartType !== 'histogram' && chartConfig.yColumn) {
         payload.y_column = chartConfig.yColumn;
       }
-      
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
+
       const response = await fetch('http://127.0.0.1:8000/generate-custom-chart', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: 'Failed to generate chart' }));
-        throw new Error(errorData.detail);
+        throw new Error(errorData.detail || `Server error: ${response.status}`);
       }
-      
+
       const data = await response.json();
+
+      if (!data.values || !data.values.x) {
+        throw new Error('Invalid chart data received from server');
+      }
+
       setDataValues(data.values);
       updatePreviewChart(data.values);
     } catch (error) {
-      console.error('Error generating preview:', error);
-      setError(error.message);
+      if (error.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        console.error('Error generating preview:', error);
+        setError(error.message || 'Failed to generate chart preview');
+      }
       setPreviewData(null);
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedDataset, chartConfig]);
 
   const updatePreviewChart = (values) => {
     let trace;
@@ -158,8 +197,13 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
     setPreviewData({ data: [trace], layout });
   };
 
-  const handleSave = () => {
-    if (previewData) {
+  const handleSave = useCallback(() => {
+    if (!previewData) {
+      setError('Please generate a valid chart preview before saving');
+      return;
+    }
+
+    try {
       onSave({
         ...previewData,
         metadata: {
@@ -168,8 +212,12 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
           createdAt: new Date().toISOString(),
         }
       });
+      onClose();
+    } catch (error) {
+      console.error('Error saving chart:', error);
+      setError('Failed to save chart. Please try again.');
     }
-  };
+  }, [previewData, selectedDataset, chartConfig, onSave, onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'var(--bg-overlay)' }}>
@@ -211,9 +259,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                   onChange={(e) => setSelectedDataset(e.target.value)}
                   disabled={datasets && datasets.length === 1}
                   className="w-full px-3 py-2 border rounded-md disabled:opacity-60 disabled:cursor-not-allowed"
-                  style={{ 
-                    borderColor: 'var(--border)', 
-                    background: 'var(--surface)', 
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
                     color: 'var(--text)'
                   }}
                 >
@@ -238,9 +286,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                   value={chartConfig.chartType}
                   onChange={(e) => setChartConfig({ ...chartConfig, chartType: e.target.value })}
                   className="w-full px-3 py-2 border rounded-md"
-                  style={{ 
-                    borderColor: 'var(--border)', 
-                    background: 'var(--surface)', 
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
                     color: 'var(--text)'
                   }}
                 >
@@ -261,9 +309,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                   onChange={(e) => setChartConfig({ ...chartConfig, xColumn: e.target.value })}
                   disabled={!selectedDataset}
                   className="w-full px-3 py-2 border rounded-md disabled:opacity-50"
-                  style={{ 
-                    borderColor: 'var(--border)', 
-                    background: 'var(--surface)', 
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
                     color: 'var(--text)'
                   }}
                 >
@@ -285,9 +333,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                     onChange={(e) => setChartConfig({ ...chartConfig, yColumn: e.target.value })}
                     disabled={!selectedDataset}
                     className="w-full px-3 py-2 border rounded-md disabled:opacity-50"
-                    style={{ 
-                      borderColor: 'var(--border)', 
-                      background: 'var(--surface)', 
+                    style={{
+                      borderColor: 'var(--border)',
+                      background: 'var(--surface)',
                       color: 'var(--text)'
                     }}
                   >
@@ -309,9 +357,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                   value={chartConfig.title}
                   onChange={(e) => setChartConfig({ ...chartConfig, title: e.target.value })}
                   className="w-full px-3 py-2 border rounded-md"
-                  style={{ 
-                    borderColor: 'var(--border)', 
-                    background: 'var(--surface)', 
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
                     color: 'var(--text)'
                   }}
                   placeholder="Enter chart title"
@@ -328,9 +376,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                   value={chartConfig.xLabel}
                   onChange={(e) => setChartConfig({ ...chartConfig, xLabel: e.target.value })}
                   className="w-full px-3 py-2 border rounded-md"
-                  style={{ 
-                    borderColor: 'var(--border)', 
-                    background: 'var(--surface)', 
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
                     color: 'var(--text)'
                   }}
                   placeholder="Enter X-axis label"
@@ -347,9 +395,9 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
                   value={chartConfig.yLabel}
                   onChange={(e) => setChartConfig({ ...chartConfig, yLabel: e.target.value })}
                   className="w-full px-3 py-2 border rounded-md"
-                  style={{ 
-                    borderColor: 'var(--border)', 
-                    background: 'var(--surface)', 
+                  style={{
+                    borderColor: 'var(--border)',
+                    background: 'var(--surface)',
                     color: 'var(--text)'
                   }}
                   placeholder="Enter Y-axis label"
@@ -376,9 +424,18 @@ const CustomChartBuilder = ({ datasets, onSave, onClose, selectedDataset: initia
               <h3 className="font-semibold mb-3" style={{ color: 'var(--text)' }}>Live Preview</h3>
               <div className="p-4 rounded-lg border" style={{ background: 'var(--surface-secondary)', borderColor: 'var(--border)' }}>
                 {error && (
-                  <div className="mb-4 p-3 rounded-md" style={{ background: 'var(--error-bg)', border: '1px solid var(--error)', color: 'var(--error)' }}>
-                    <p className="text-sm">{error}</p>
-                  </div>
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 p-3 rounded-md flex items-start gap-2"
+                    style={{ background: 'var(--danger-bg)', border: '1px solid var(--danger)', color: 'var(--danger)' }}
+                  >
+                    <AlertCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-medium">Error</p>
+                      <p className="text-sm opacity-90">{error}</p>
+                    </div>
+                  </motion.div>
                 )}
                 {loading ? (
                   <div className="h-96 flex items-center justify-center">

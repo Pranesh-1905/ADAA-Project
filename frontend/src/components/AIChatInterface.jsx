@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader, Bot, User } from 'lucide-react';
+import { Send, Loader, Bot, User, Cpu, BarChart3, Info } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -191,7 +191,19 @@ const AIChatInterface = ({ taskId }) => {
                                                         color: message.source === 'llm' ? 'var(--primary)' : 'var(--text-secondary)'
                                                     }}
                                                 >
-                                                    {message.source === 'llm' ? '🤖 AI-Powered' : '📊 Rule-Based'}
+                                                    <span className="flex items-center gap-1">
+                                                        {message.source === 'llm' ? (
+                                                            <>
+                                                                <Cpu className="h-3 w-3" />
+                                                                AI-Powered
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <BarChart3 className="h-3 w-3" />
+                                                                Rule-Based
+                                                            </>
+                                                        )}
+                                                    </span>
                                                 </span>
                                             )}
                                         </>
@@ -200,8 +212,9 @@ const AIChatInterface = ({ taskId }) => {
 
                                 {/* Show note if available */}
                                 {message.note && (
-                                    <p className="text-xs mt-2 opacity-60 italic">
-                                        💡 {message.note}
+                                    <p className="text-xs mt-2 opacity-60 italic flex items-center gap-1">
+                                        <Info className="h-3 w-3" />
+                                        {message.note}
                                     </p>
                                 )}
                             </div>

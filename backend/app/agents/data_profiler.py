@@ -14,6 +14,21 @@ import logging
 
 from .base_agent import BaseAgent, AgentStatus
 
+# Import enhanced profiling utilities
+try:
+    from .enhanced_profiling import data_typing, outlier_detection, quality_scoring
+    ENHANCED_PROFILING_AVAILABLE = True
+except ImportError:
+    ENHANCED_PROFILING_AVAILABLE = False
+
+
+try:
+    from app.utils.performance_monitor import track_performance
+except ImportError:
+    # Dummy decorator if not available
+    def track_performance(name):
+        return lambda x: x
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,6 +56,7 @@ class DataProfilerAgent(BaseAgent):
             "min_quality_score": 0.7    # 70% minimum quality
         }
     
+    @track_performance("data_profiling")
     async def analyze(self, data: Any, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Perform comprehensive data profiling.
@@ -80,7 +96,14 @@ class DataProfilerAgent(BaseAgent):
         }
         
         # Calculate overall quality score
-        results["quality_score"] = self._calculate_quality_score(results)
+        # Use enhanced quality scoring if available
+        if ENHANCED_PROFILING_AVAILABLE:
+            quality_results = quality_scoring.calculate_quality_score(df)
+            results["quality_score"] = quality_results["overall"]
+            # Store detailed quality breakdown
+            results["quality_breakdown"] = quality_results
+        else:
+            results["quality_score"] = self._calculate_quality_score_legacy(results)
         
         # Generate quality issues and recommendations
         results["quality_issues"] = self._identify_quality_issues(results)
@@ -108,7 +131,7 @@ class DataProfilerAgent(BaseAgent):
         }
     
     def _analyze_data_types(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Analyze and infer data types"""
+        """Analyze and infer data types using enhanced typing if available"""
         self.emit_activity(
             action="Analyzing data types",
             status=AgentStatus.RUNNING
@@ -120,29 +143,46 @@ class DataProfilerAgent(BaseAgent):
             "categorical": 0,
             "datetime": 0,
             "text": 0,
-            "boolean": 0
+            "boolean": 0,
+            "other": 0
         }
         
         for col in df.columns:
             dtype = str(df[col].dtype)
-            inferred_type = self._infer_semantic_type(df[col])
+            
+            if ENHANCED_PROFILING_AVAILABLE:
+                # Use enhanced data typing
+                inferred = data_typing.infer_data_type(df[col])
+                semantic_type = inferred["type"]
+                metadata = inferred["metadata"]
+                confidence = inferred.get("confidence", 0.0)
+            else:
+                # Fallback to legacy
+                semantic_type = self._infer_semantic_type_legacy(df[col])
+                metadata = {}
+                confidence = 1.0
             
             type_info[col] = {
                 "pandas_dtype": dtype,
-                "semantic_type": inferred_type,
+                "semantic_type": semantic_type,
+                "confidence": confidence,
+                "metadata": metadata,
                 "unique_values": int(df[col].nunique()),
                 "unique_ratio": float(df[col].nunique() / len(df))
             }
             
-            type_counts[inferred_type] += 1
+            if semantic_type in type_counts:
+                type_counts[semantic_type] += 1
+            else:
+                type_counts["other"] = type_counts.get("other", 0) + 1
         
         return {
             "columns": type_info,
             "type_distribution": type_counts
         }
     
-    def _infer_semantic_type(self, series: pd.Series) -> str:
-        """Infer semantic type of a column"""
+    def _infer_semantic_type_legacy(self, series: pd.Series) -> str:
+        """Infer semantic type of a column (Legacy)"""
         dtype = series.dtype
         
         # Boolean
@@ -226,7 +266,7 @@ class DataProfilerAgent(BaseAgent):
         return stats
     
     def _detect_outliers(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Detect outliers using IQR method"""
+        """Detect outliers using enhanced detection if available"""
         self.emit_activity(
             action="Detecting outliers",
             status=AgentStatus.RUNNING
@@ -239,24 +279,37 @@ class DataProfilerAgent(BaseAgent):
             if df[col].isnull().all():
                 continue
             
-            Q1 = df[col].quantile(0.25)
-            Q3 = df[col].quantile(0.75)
-            IQR = Q3 - Q1
-            
-            lower_bound = Q1 - 1.5 * IQR
-            upper_bound = Q3 + 1.5 * IQR
-            
-            outlier_mask = (df[col] < lower_bound) | (df[col] > upper_bound)
-            outlier_count = int(outlier_mask.sum())
-            
-            if outlier_count > 0:
-                outliers[col] = {
-                    "count": outlier_count,
-                    "percentage": float(outlier_count / len(df)),
-                    "lower_bound": float(lower_bound),
-                    "upper_bound": float(upper_bound),
-                    "severity": "high" if outlier_count / len(df) > 0.1 else "medium"
-                }
+            if ENHANCED_PROFILING_AVAILABLE:
+                # Use enhanced outlier detection
+                result = outlier_detection.detect_outliers(df[col])
+                
+                if result.get("outlier_count", 0) > 0:
+                    outliers[col] = {
+                        "count": result["outlier_count"],
+                        "percentage": result["outlier_percentage"],
+                        "severity": result["severity"],
+                        "methods_used": result.get("methods_used", [])
+                    }
+            else:
+                # Legacy IQR method
+                Q1 = df[col].quantile(0.25)
+                Q3 = df[col].quantile(0.75)
+                IQR = Q3 - Q1
+                
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                
+                outlier_mask = (df[col] < lower_bound) | (df[col] > upper_bound)
+                outlier_count = int(outlier_mask.sum())
+                
+                if outlier_count > 0:
+                    outliers[col] = {
+                        "count": outlier_count,
+                        "percentage": float(outlier_count / len(df)),
+                        "lower_bound": float(lower_bound),
+                        "upper_bound": float(upper_bound),
+                        "severity": "high" if outlier_count / len(df) > 0.1 else "medium"
+                    }
         
         return {
             "columns_with_outliers": outliers,
@@ -298,8 +351,8 @@ class DataProfilerAgent(BaseAgent):
         
         return distributions
     
-    def _calculate_quality_score(self, results: Dict[str, Any]) -> float:
-        """Calculate overall data quality score (0-1)"""
+    def _calculate_quality_score_legacy(self, results: Dict[str, Any]) -> float:
+        """Calculate overall data quality score (0-1) [Legacy Method]"""
         scores = []
         
         # Missing values score (lower is better)

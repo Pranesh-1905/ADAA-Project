@@ -112,13 +112,14 @@
 │  └─ Coordinates all agents in sequence                                      │
 │                                                                             │
 │  Agent 1: Data Profiler (data_profiler.py)                                  │
-│  ├─ Shape analysis          ├─ Data types                                  │
+│  ├─ Shape analysis          ├─ Data types (Enhanced semantic detection)    │
 │  ├─ Missing values          ├─ Duplicates                                  │
-│  └─ Summary statistics      └─ Column profiling                            │
+│  ├─ Summary statistics      ├─ Column profiling                            │
+│  └─ Quality Score (Enhanced with multi-factor weighting)                   │
 │                                                                             │
 │  Agent 2: Insight Discovery (insight_discovery.py)                          │
 │  ├─ Correlations            ├─ Distributions                               │
-│  ├─ Outlier detection       ├─ Pattern recognition                         │
+│  ├─ Outlier detection (IQR + Z-Score)                                      │
 │  └─ Statistical significance └─ Trend analysis                             │
 │                                                                             │
 │  Agent 3: Visualization (visualization.py)                                  │
@@ -133,7 +134,13 @@
 │  🆕 Agent 5: Query Agent (query_agent.py) - Phase 4.1                      │
 │  ├─ OpenAI GPT-4            ├─ Context-aware Q&A                           │
 │  ├─ Confidence scoring      ├─ Source attribution                          │
-│  └─ Fallback mode           └─ Natural language understanding              │
+│  └─ Enhanced NLP (Fuzzy matching, Intent Classification)                   │
+│                                                                             │
+│  🆕 Utilities (Shared):                                                     │
+│  ├─ Enhanced NLP (enhanced_nlp.py)                                          │
+│  ├─ Enhanced Profiling (enhanced_profiling.py)                              │
+│  ├─ Performance Monitor (app/utils/performance_monitor.py)                  │
+│  └─ Cache Manager (app/utils/cache_manager.py)                              │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 

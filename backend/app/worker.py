@@ -105,13 +105,20 @@ def analyze_dataset(self, filename, user: str):
                     import asyncio
                     from app.event_stream import publish_event_async
                     
-                    # Get the current event loop
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
+                    # Try to get the current event loop
+                    try:
+                        loop = asyncio.get_running_loop()
                         # Schedule the async publish as a background task
                         loop.create_task(publish_event_async(task_id, activity.to_dict()))
+                    except RuntimeError:
+                        # No running loop, create a new one for this operation
+                        try:
+                            asyncio.run(publish_event_async(task_id, activity.to_dict()))
+                        except Exception as inner_e:
+                            logger.warning(f"Failed to publish event via asyncio.run: {inner_e}")
                 except Exception as e:
-                    logger.error(f"Failed to publish event: {e}")
+                    # Log but don't fail the analysis if event publishing fails
+                    logger.warning(f"Failed to publish event (non-critical): {e}")
             return callback
         
         event_callback = create_event_callback(self.request.id)
