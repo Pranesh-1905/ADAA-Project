@@ -13,9 +13,9 @@ import pandas as pd
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.worker import analyze_dataset, generate_visuals, celery
 from celery.result import AsyncResult
-from app.auth import get_current_user, get_password_hash, create_access_token, authenticate_user
+from app.auth import get_current_user, get_password_hash, create_access_token, authenticate_user, verify_password
 from fastapi.security import OAuth2PasswordRequestForm
-from app.schemas import UserCreate, Token
+from app.schemas import UserCreate, Token, UserUpdate, PasswordChange, UserLogin
 from fastapi import Depends
 from datetime import timedelta, datetime
 from typing import List, Optional
@@ -430,8 +430,17 @@ async def register(user: UserCreate):
         existing = await db.users.find_one({"username": user.username})
         if existing:
             raise HTTPException(status_code=400, detail="Username already exists")
+        
+        email_exists = await db.users.find_one({"email": user.email})
+        if email_exists:
+            raise HTTPException(status_code=400, detail="Email already exists")
+        
         hashed = get_password_hash(user.password)
-        await db.users.insert_one({"username": user.username, "hashed_password": hashed})
+        await db.users.insert_one({
+            "username": user.username,
+            "email": user.email,
+            "hashed_password": hashed
+        })
         return {"message": "user created"}
     except HTTPException:
         # re-raise known HTTP errors
@@ -459,7 +468,7 @@ async def read_me(current_user: dict = Depends(get_current_user)):
 
 
 @app.post("/login", response_model=Token)
-async def login_json(credentials: UserCreate):
+async def login_json(credentials: UserLogin):
     """JSON login endpoint: accepts {username, password} and returns access token."""
     user = await authenticate_user(credentials.username, credentials.password)
     if not user:
@@ -467,6 +476,85 @@ async def login_json(credentials: UserCreate):
     access_token_expires = timedelta(minutes=60 * 24)
     access_token = create_access_token(data={"sub": user.get("username")}, expires_delta=access_token_expires)
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@app.put("/update-profile")
+async def update_profile(profile_data: UserUpdate, current_user: dict = Depends(get_current_user)):
+    """Update user profile information (username, email)."""
+    try:
+        username = current_user.get("username")
+        update_fields = {}
+        
+        # Check if new username is taken (if username is being changed)
+        if profile_data.username and profile_data.username != username:
+            existing = await db.users.find_one({"username": profile_data.username})
+            if existing:
+                raise HTTPException(status_code=400, detail="Username already taken")
+            update_fields["username"] = profile_data.username
+        
+        # Update email if provided
+        if profile_data.email is not None:
+            update_fields["email"] = profile_data.email
+        
+        if not update_fields:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        
+        # Update the user document
+        result = await db.users.update_one(
+            {"username": username},
+            {"$set": update_fields}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get updated user
+        updated_user = await db.users.find_one({"username": update_fields.get("username", username)})
+        user_data = dict(updated_user)
+        user_data.pop("hashed_password", None)
+        user_data.pop("_id", None)
+        
+        return {"message": "Profile updated successfully", "user": user_data}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Profile update error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update profile: {str(e)}")
+
+
+@app.post("/change-password")
+async def change_password(password_data: PasswordChange, current_user: dict = Depends(get_current_user)):
+    """Change user password."""
+    try:
+        username = current_user.get("username")
+        
+        # Verify current password
+        user = await db.users.find_one({"username": username})
+        if not user or not verify_password(password_data.current_password, user.get("hashed_password")):
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+        
+        # Validate new password
+        if len(password_data.new_password) < 6:
+            raise HTTPException(status_code=400, detail="New password must be at least 6 characters")
+        
+        # Hash and update new password
+        new_hashed = get_password_hash(password_data.new_password)
+        result = await db.users.update_one(
+            {"username": username},
+            {"$set": {"hashed_password": new_hashed}}
+        )
+        
+        if result.modified_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {"message": "Password changed successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password change error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to change password: {str(e)}")
+
+
 from fastapi.responses import FileResponse
 
 @app.get("/charts/{image_name}")

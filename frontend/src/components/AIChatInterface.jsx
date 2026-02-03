@@ -74,37 +74,57 @@ const AIChatInterface = ({ taskId }) => {
     };
 
     return (
-        <div className="flex flex-col h-[600px] rounded-xl" style={{ background: 'var(--surface-secondary)' }}>
+        <div className="flex flex-col h-[600px] rounded-xl border" style={{ background: 'var(--surface-secondary)', borderColor: 'var(--border)' }}>
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
                 {messages.length === 0 && (
-                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                        <Bot className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p className="text-lg font-medium mb-2">Ask me anything about your data</p>
-                        <p className="text-sm">
+                    <motion.div 
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center py-12"
+                    >
+                        <motion.div
+                            className="inline-flex p-4 rounded-2xl mb-4"
+                            style={{ background: 'var(--primary-bg)' }}
+                            whileHover={{ scale: 1.05, rotate: 5 }}
+                            transition={{ type: 'spring', stiffness: 300 }}
+                        >
+                            <Bot className="h-12 w-12" style={{ color: 'var(--primary)' }} />
+                        </motion.div>
+                        <p className="text-lg font-semibold mb-2" style={{ color: 'var(--text)' }}>
+                            Ask me anything about your data
+                        </p>
+                        <p className="text-sm mb-6" style={{ color: 'var(--text-secondary)' }}>
                             I can help you understand patterns, trends, and insights
                         </p>
-                        <div className="mt-6 space-y-2">
-                            <button
-                                onClick={() => setInput('What are the main trends in this dataset?')}
-                                className="block mx-auto px-4 py-2 card-sm text-sm transition-colors"
-                            >
-                                What are the main trends in this dataset?
-                            </button>
-                            <button
-                                onClick={() => setInput('Are there any outliers or anomalies?')}
-                                className="block mx-auto px-4 py-2 card-sm text-sm transition-colors"
-                            >
-                                Are there any outliers or anomalies?
-                            </button>
-                            <button
-                                onClick={() => setInput('What correlations exist between columns?')}
-                                className="block mx-auto px-4 py-2 card-sm text-sm transition-colors"
-                            >
-                                What correlations exist between columns?
-                            </button>
+                        <div className="space-y-2 max-w-md mx-auto">
+                            {[
+                                'What are the main trends in this dataset?',
+                                'Are there any outliers or anomalies?',
+                                'What correlations exist between columns?'
+                            ].map((suggestion, idx) => (
+                                <motion.button
+                                    key={idx}
+                                    onClick={() => setInput(suggestion)}
+                                    className="w-full px-4 py-3 rounded-lg text-sm text-left transition-all"
+                                    style={{ 
+                                        background: 'var(--surface)',
+                                        border: '1px solid var(--border)',
+                                        color: 'var(--text-secondary)'
+                                    }}
+                                    whileHover={{ 
+                                        scale: 1.02,
+                                        borderColor: 'var(--primary)',
+                                        color: 'var(--text)'
+                                    }}
+                                    whileTap={{ scale: 0.98 }}
+                                    aria-label={`Suggestion: ${suggestion}`}
+                                >
+                                    {suggestion}
+                                </motion.button>
+                            ))}
                         </div>
-                    </div>
+                    </motion.div>
                 )}
 
                 <AnimatePresence>

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { BarChart3, FileBarChart2, MessageCircle, UploadCloud, UserCheck, Moon, Sun } from 'lucide-react';
+import { BarChart3, FileBarChart2, MessageCircle, UploadCloud, UserCheck, Moon, Sun, ArrowRight } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 
 export default function Landing() {
@@ -51,12 +51,20 @@ export default function Landing() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col" style={{background: 'var(--bg)', color: 'var(--text)'}}>
+    <div className="min-h-screen flex flex-col relative overflow-hidden" style={{background: 'var(--bg)', color: 'var(--text)'}}>
+      {/* Background Pattern */}
+      <div 
+        className="absolute inset-0 opacity-30 pointer-events-none"
+        style={{ background: 'var(--bg-pattern)' }}
+      />
+      
       {/* Header */}
       <header
-        className="fixed top-0 left-0 right-0 z-50 backdrop-blur-sm"
+        className="fixed top-0 left-0 right-0 z-50"
         style={{
-          background: 'color-mix(in srgb, var(--surface) 70%, transparent)',
+          background: 'var(--surface-glass)',
+          backdropFilter: 'blur(var(--blur-lg))',
+          WebkitBackdropFilter: 'blur(var(--blur-lg))',
           borderBottom: '1px solid var(--border)',
           boxShadow: 'var(--shadow-sm)'
         }}
@@ -66,11 +74,15 @@ export default function Landing() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-3"
           >
-            <div style={{color: 'var(--primary)'}}>
+            <motion.div 
+              style={{color: 'var(--primary)'}}
+              whileHover={{ rotate: 360, scale: 1.1 }}
+              transition={{ duration: 0.6 }}
+            >
               <BarChart3 className="w-8 h-8" />
-            </div>
+            </motion.div>
             <span className="text-2xl font-extrabold tracking-tight gradient-text">
               ADAA
             </span>
@@ -81,10 +93,14 @@ export default function Landing() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5 }}
             onClick={toggleTheme}
-            className="p-2 rounded-full shadow-md transition-all duration-300 hover:scale-110 border"
-            style={{background: 'var(--surface-secondary)', borderColor: 'var(--border)'}}
-            whileHover={{ rotate: 180 }}
-            whileTap={{ scale: 0.9 }}
+            className="p-2.5 rounded-xl shadow-md transition-all duration-300 hover:shadow-lg border"
+            style={{
+              background: 'var(--surface-secondary)', 
+              borderColor: 'var(--border)'
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.95 }}
+            aria-label="Toggle theme"
           >
             {theme === 'light' ? (
               <Moon className="w-5 h-5" style={{color: 'var(--primary)'}} />
@@ -100,72 +116,130 @@ export default function Landing() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="container mx-auto px-4 pt-28 pb-20 flex-1 w-full"
+        className="container mx-auto px-4 pt-32 pb-20 flex-1 w-full relative z-10"
       >
         <div className="max-w-4xl mx-auto text-center">
+          {/* Badge */}
+          <motion.div
+            variants={itemVariants}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-8"
+            style={{
+              background: 'var(--primary-bg)',
+              border: '1px solid var(--primary)',
+              color: 'var(--primary)'
+            }}
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-current"></span>
+            </span>
+            <span className="text-sm font-semibold">AI-Powered Analytics Platform</span>
+          </motion.div>
+
           <motion.h1
             variants={itemVariants}
-            className="text-5xl md:text-7xl font-extrabold mb-6 gradient-text"
+            className="text-5xl sm:text-6xl md:text-7xl font-extrabold mb-6 leading-tight"
           >
-            Advanced Data Analysis Assistant
+            <span className="gradient-text">Advanced Data</span>
+            <br />
+            <span className="gradient-text">Analysis Assistant</span>
           </motion.h1>
 
           <motion.p
             variants={itemVariants}
-            className="text-xl md:text-2xl mb-12 leading-relaxed font-medium"
+            className="text-lg sm:text-xl md:text-2xl mb-12 leading-relaxed font-medium max-w-3xl mx-auto"
             style={{color: 'var(--text-secondary)'}}
           >
-            Transform your data into actionable insights with AI-powered analytics.<br className="hidden md:inline" /> Upload, analyze, and visualize your data in seconds.
+            Transform your data into actionable insights with AI-powered analytics.
+            <br className="hidden sm:inline" /> 
+            Upload, analyze, and visualize your data in seconds.
           </motion.p>
 
           <motion.div
             variants={itemVariants}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12"
           >
             <motion.button
-              whileHover={{ scale: 1.07, boxShadow: 'var(--shadow-lg)' }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/register')}
-              className="btn btn-primary min-w-[200px]"
+              className="btn btn-primary btn-lg min-w-[200px] shadow-xl"
+              aria-label="Get started with ADAA"
             >
               Get Started
+              <ArrowRight className="w-5 h-5 ml-2" />
             </motion.button>
 
             <motion.button
-              whileHover={{ scale: 1.07 }}
-              whileTap={{ scale: 0.96 }}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.98 }}
               onClick={() => navigate('/login')}
-              className="btn btn-secondary min-w-[200px]"
+              className="btn btn-outline min-w-[200px]"
+              aria-label="Sign in to your account"
             >
               Sign In
             </motion.button>
+          </motion.div>
+
+          {/* Trust indicators */}
+          <motion.div
+            variants={itemVariants}
+            className="flex flex-wrap items-center justify-center gap-6 text-sm"
+            style={{color: 'var(--text-tertiary)'}}
+          >
+            <div className="flex items-center gap-2">
+              <UserCheck className="w-4 h-4" style={{color: 'var(--success)'}} />
+              <span>10K+ Active Users</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <FileBarChart2 className="w-4 h-4" style={{color: 'var(--success)'}} />
+              <span>50K+ Analyses</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" style={{color: 'var(--success)'}} />
+              <span>99.9% Uptime</span>
+            </div>
           </motion.div>
         </div>
 
         {/* Features Grid */}
         <motion.div
           variants={containerVariants}
-          className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mt-24 max-w-6xl mx-auto"
+          className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mt-28 max-w-6xl mx-auto"
         >
           {features.map((feature, index) => (
             <motion.div
               key={index}
               variants={itemVariants}
-              whileHover={{ y: -8 }}
-              className="card card-lg flex flex-col items-center text-center group"
+              whileHover={{ y: -10, scale: 1.02 }}
+              className="card card-lg flex flex-col items-center text-center group relative overflow-hidden"
+              style={{
+                background: 'var(--surface)',
+                borderColor: 'var(--border)'
+              }}
             >
+              {/* Gradient overlay on hover */}
+              <div 
+                className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.05), rgba(139, 92, 246, 0.05))'
+                }}
+              />
+              
               <motion.div
-                whileHover={{ rotate: 360 }}
-                transition={{ duration: 0.6 }}
-                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 shadow-md group-hover:shadow-lg transition-all"
-                style={{background: 'linear-gradient(135deg, var(--primary), var(--secondary))'}}
+                whileHover={{ rotate: [0, -10, 10, 0], scale: 1.1 }}
+                transition={{ duration: 0.5 }}
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 shadow-md group-hover:shadow-xl transition-all relative z-10"
+                style={{
+                  background: 'linear-gradient(135deg, var(--primary), var(--secondary))'
+                }}
               >
                 <feature.icon className="w-8 h-8" style={{color: 'var(--text-inverse)'}} />
               </motion.div>
-              <h3 className="text-lg font-bold mb-2">
+              <h3 className="text-lg font-bold mb-3 relative z-10" style={{color: 'var(--text)'}}>
                 {feature.title}
               </h3>
-              <p style={{color: 'var(--text-secondary)'}}>
+              <p className="relative z-10" style={{color: 'var(--text-secondary)'}}>
                 {feature.description}
               </p>
             </motion.div>
@@ -175,22 +249,30 @@ export default function Landing() {
         {/* Stats Section */}
         <motion.div
           variants={itemVariants}
-          className="mt-24 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-3xl mx-auto"
+          className="mt-28 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto"
         >
           {[
-            { value: "10K+", label: "Analyses" },
-            { value: "99.9%", label: "Uptime" },
-            { value: "<1s", label: "Response Time" }
+            { value: "10K+", label: "Analyses Completed", color: 'var(--primary)' },
+            { value: "99.9%", label: "Uptime Guarantee", color: 'var(--success)' },
+            { value: "<1s", label: "Response Time", color: 'var(--accent-cyan)' }
           ].map((stat, index) => (
             <motion.div
               key={index}
-              whileHover={{ scale: 1.08 }}
-              className="card text-center"
+              whileHover={{ scale: 1.05, y: -5 }}
+              className="card card-lg text-center relative overflow-hidden group"
+              style={{
+                background: 'var(--surface)',
+                borderColor: stat.color
+              }}
             >
-              <div className="text-4xl font-extrabold gradient-text drop-shadow">
+              <div 
+                className="absolute inset-0 opacity-0 group-hover:opacity-10 transition-opacity duration-300"
+                style={{ background: stat.color }}
+              />
+              <div className="text-5xl font-extrabold gradient-text mb-2 relative z-10">
                 {stat.value}
               </div>
-              <div className="mt-2 font-medium" style={{color: 'var(--text-secondary)'}}>
+              <div className="font-semibold relative z-10" style={{color: 'var(--text-secondary)'}}>
                 {stat.label}
               </div>
             </motion.div>
@@ -200,28 +282,59 @@ export default function Landing() {
         {/* CTA Section */}
         <motion.div
           variants={itemVariants}
-          className="card card-lg text-center mt-20 max-w-2xl mx-auto"
-          style={{background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(139, 92, 246, 0.1))', borderColor: 'var(--primary)'}}
+          className="mt-28 max-w-3xl mx-auto relative overflow-hidden"
         >
-          <h2 className="text-3xl font-bold mb-4">Ready to get started?</h2>
-          <p className="mb-6" style={{color: 'var(--text-secondary)'}}>
-            Join thousands of data analysts using ADAA to unlock insights from their data.
-          </p>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/register')}
-            className="btn btn-primary"
+          <div 
+            className="card card-lg text-center relative z-10"
+            style={{
+              background: 'var(--surface-glass)',
+              backdropFilter: 'blur(var(--blur-lg))',
+              WebkitBackdropFilter: 'blur(var(--blur-lg))',
+              borderColor: 'var(--primary)',
+              borderWidth: '2px'
+            }}
           >
-            Sign Up Now →
-          </motion.button>
+            <div 
+              className="absolute inset-0 opacity-20"
+              style={{
+                background: 'linear-gradient(135deg, var(--primary), var(--secondary))'
+              }}
+            />
+            <div className="relative z-10">
+              <h2 className="text-3xl sm:text-4xl font-bold mb-4" style={{color: 'var(--text)'}}>
+                Ready to get started?
+              </h2>
+              <p className="text-lg mb-8 max-w-xl mx-auto" style={{color: 'var(--text-secondary)'}}>
+                Join thousands of data analysts using ADAA to unlock insights from their data.
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => navigate('/register')}
+                className="btn btn-primary btn-lg shadow-xl"
+              >
+                Sign Up Now
+                <ArrowRight className="w-5 h-5 ml-2" />
+              </motion.button>
+            </div>
+          </div>
         </motion.div>
       </motion.main>
 
       {/* Footer */}
-      <footer className="border-t py-8" style={{borderTopColor: 'var(--border)', background: 'var(--surface)'}}>
+      <footer 
+        className="border-t py-8 relative z-10" 
+        style={{
+          borderTopColor: 'var(--border)', 
+          background: 'var(--surface)',
+          backdropFilter: 'blur(var(--blur-md))',
+          WebkitBackdropFilter: 'blur(var(--blur-md))'
+        }}
+      >
         <div className="container mx-auto px-4 text-center" style={{color: 'var(--text-secondary)'}}>
-          <p>© 2026 ADAA Analytics. Built with ❤️ for data enthusiasts.</p>
+          <p className="text-sm sm:text-base">
+            © 2026 ADAA Analytics. Built with ❤️ for data enthusiasts.
+          </p>
         </div>
       </footer>
     </div>

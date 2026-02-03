@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
-import { Lock, User, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, ArrowRight, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import { login } from '../api';
+import { useToast } from '../context/ToastContext';
 const handleGoogleLogin = () => {
   window.location.href = 'http://localhost:8000/auth/google/login';
 };
 export default function Login() {
   const navigate = useNavigate();
+  const toast = useToast();
   const [formData, setFormData] = useState({ username: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -21,9 +23,12 @@ export default function Login() {
 
     try {
       await login(formData.username, formData.password);
+      toast.success('Welcome back! Login successful');
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message || 'Login failed');
+      const errorMsg = err.message || 'Login failed';
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -31,20 +36,35 @@ export default function Login() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 py-12"
+      className="min-h-screen flex items-center justify-center px-4 py-12 relative overflow-hidden"
       style={{ background: 'var(--bg)', color: 'var(--text)' }}
     >
+      {/* Background Pattern */}
+      <div 
+        className="absolute inset-0 opacity-30 pointer-events-none"
+        style={{ background: 'var(--bg-pattern)' }}
+      />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
         <motion.div
-          whileHover={{ boxShadow: 'var(--shadow-xl)' }}
-          className="card card-lg"
-          style={{ background: 'var(--surface)' }}
+          whileHover={{ boxShadow: 'var(--shadow-xl)', y: -2 }}
+          className="card card-lg relative overflow-hidden"
+          style={{ 
+            background: 'var(--surface-glass)',
+            backdropFilter: 'blur(var(--blur-lg))',
+            WebkitBackdropFilter: 'blur(var(--blur-lg))',
+            border: '1px solid var(--surface-glass-border)'
+          }}
         >
+          {/* Top gradient border */}
+          <div 
+            className="absolute top-0 left-0 right-0 h-1"
+            style={{ background: 'linear-gradient(90deg, var(--primary), var(--secondary))' }}
+          />
           <div className="text-center mb-8">
             <motion.h2
               initial={{ opacity: 0, y: -10 }}
@@ -79,7 +99,10 @@ export default function Login() {
                 required
                 value={formData.username}
                 onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                className="input pr-4"
+                className="input"
+                placeholder="Enter your username"
+                aria-label="Username"
+                autoComplete="username"
               />
             </motion.div>
 
@@ -104,6 +127,9 @@ export default function Login() {
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="input pr-12"
+                  placeholder="Enter your password"
+                  aria-label="Password"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -139,21 +165,32 @@ export default function Login() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-300 text-sm mt-2"
+                className="p-4 rounded-xl text-sm mt-2 flex items-start gap-3"
+                style={{
+                  background: 'var(--danger-bg)',
+                  border: '1px solid var(--danger)',
+                  color: 'var(--danger)'
+                }}
+                role="alert"
               >
-                {error}
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <span>{error}</span>
               </motion.div>
             )}
 
             <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
+              whileHover={{ scale: loading ? 1 : 1.02 }}
+              whileTap={{ scale: loading ? 1 : 0.98 }}
               type="submit"
               disabled={loading}
-              className="btn btn-primary w-full"
+              className="btn btn-primary w-full btn-lg mt-6"
+              aria-label="Sign in to your account"
             >
               {loading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Signing in...</span>
+                </>
               ) : (
                 <>
                   Sign In

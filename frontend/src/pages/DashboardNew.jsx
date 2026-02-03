@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Navbar from '../components/Navbar';
+import Navbar from '../components/Navbar_new';
 import FileUploadZone from '../components/FileUploadZone';
 import JobQueuePanel from '../components/JobQueuePanel';
 import AnalysisResultsViewer from '../components/AnalysisResultsViewer';
@@ -10,9 +10,11 @@ import ShareAnalysisModal from '../components/ShareAnalysisModal';
 import CommentsPanel from '../components/CommentsPanel';
 // VersionHistory disabled
 import { uploadFile, analyzeFile } from '../api';
+import { useToast } from '../context/ToastContext';
 import { BarChart3, Activity, Plus, Share2, MessageSquare, History, Search, Lightbulb, Bot, CheckCircle, XCircle } from 'lucide-react';
 
 export default function DashboardNew() {
+    const toast = useToast();
     const [selectedJob, setSelectedJob] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [showActivityFeed, setShowActivityFeed] = useState(false);
@@ -51,7 +53,7 @@ export default function DashboardNew() {
             }
 
             const result = await response.json();
-            alert('Chart saved successfully!');
+            toast.success('Custom chart saved successfully!');
 
             // Close the chart builder
             setShowChartBuilder(false);
@@ -77,7 +79,7 @@ export default function DashboardNew() {
 
         } catch (error) {
             console.error('Failed to save custom chart:', error);
-            alert(`Failed to save chart: ${error.message}`);
+            toast.error(`Failed to save chart: ${error.message}`);
         }
     };
 
@@ -86,15 +88,17 @@ export default function DashboardNew() {
             try {
                 // Upload file
                 await uploadFile(fileData.file);
+                toast.success(`${fileData.file.name} uploaded successfully`);
 
                 // Start analysis
                 const { task_id } = await analyzeFile(fileData.file.name);
+                toast.info(`Analysis started for ${fileData.file.name}`);
 
                 // Trigger refresh
                 setRefreshTrigger(prev => prev + 1);
             } catch (error) {
                 console.error('Failed to upload/analyze file:', error);
-                alert(`Failed to process ${fileData.file.name}: ${error.message}`);
+                toast.error(`Failed to process ${fileData.file.name}: ${error.message}`);
             }
         }
     };
@@ -132,50 +136,77 @@ export default function DashboardNew() {
     }, [refreshTrigger]);
 
     return (
-        <div className="min-h-screen flex flex-col" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+        <div className="min-h-screen flex flex-col relative overflow-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
+            {/* Background Pattern */}
+            <div 
+                className="absolute inset-0 opacity-20 pointer-events-none"
+                style={{ background: 'var(--bg-pattern)' }}
+            />
+            
             <Navbar />
 
             {/* Header */}
-            <div className="border-b" style={{ borderColor: 'var(--border)', background: 'var(--surface)' }}>
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-xl" style={{ background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', boxShadow: 'var(--shadow-md)' }}>
-                                <BarChart3 className="h-8 w-8" style={{ color: 'var(--text-inverse)' }} />
-                            </div>
+            <div 
+                className="border-b relative z-10"
+                style={{ 
+                    borderColor: 'var(--border)', 
+                    background: 'var(--surface-glass)',
+                    backdropFilter: 'blur(var(--blur-md))',
+                    WebkitBackdropFilter: 'blur(var(--blur-md))'
+                }}
+            >
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                            <motion.div 
+                                className="p-2 sm:p-3 rounded-xl" 
+                                style={{ 
+                                    background: 'linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%)', 
+                                    boxShadow: 'var(--shadow-md)' 
+                                }}
+                                whileHover={{ scale: 1.05, rotate: 5 }}
+                                transition={{ type: 'spring', stiffness: 300 }}
+                            >
+                                <BarChart3 className="h-6 w-6 sm:h-8 sm:w-8" style={{ color: 'var(--text-inverse)' }} />
+                            </motion.div>
                             <div>
-                                <h1 className="text-3xl font-bold gradient-text">
+                                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold gradient-text">
                                     AI Data Analytics Dashboard
                                 </h1>
-                                <p style={{ color: 'var(--text-secondary)' }} className="mt-1">
+                                <p style={{ color: 'var(--text-secondary)' }} className="mt-1 text-xs sm:text-sm">
                                     Upload, analyze, and explore your data with AI-powered insights
                                 </p>
                             </div>
                         </div>
 
-                        <button
+                        <motion.button
                             onClick={() => setShowActivityFeed(!showActivityFeed)}
-                            className={`btn ${showActivityFeed ? 'btn-primary' : 'btn-secondary'}`}
+                            className={`btn btn-sm sm:btn ${showActivityFeed ? 'btn-primary' : 'btn-secondary'} w-full sm:w-auto`}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            aria-label="Toggle agent activity feed"
                         >
-                            <Activity className="h-5 w-5" />
-                            Agent Activity
-                        </button>
+                            <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
+                            <span className="hidden sm:inline">Agent Activity</span>
+                            <span className="sm:hidden">Activity</span>
+                        </motion.button>
                     </div>
                 </div>
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1">
-                <div className="space-y-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full relative z-10">
+                <div className="space-y-4 sm:space-y-6">
                     {/* Top Row: Upload & Welcome */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                         {/* Upload Dataset */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
+                            whileHover={{ y: -2 }}
                             className="card h-full"
                         >
-                            <h2 className="text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>
+                            <h2 className="text-lg sm:text-xl font-bold mb-4" style={{ color: 'var(--text)' }}>
                                 Upload Dataset
                             </h2>
                             <FileUploadZone onFilesSelected={handleFilesSelected} />

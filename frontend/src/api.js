@@ -43,10 +43,10 @@ const apiRequest = async (endpoint, options = {}) => {
 };
 
 // Auth endpoints
-export const register = async (username, password) => {
+export const register = async (username, email, password) => {
   const response = await apiRequest('/register', {
     method: 'POST',
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify({ username, email, password }),
     skipAuth: true,
   });
   return response;

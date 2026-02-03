@@ -69,32 +69,47 @@ const FileUploadZone = ({ onFilesSelected, maxSize = 50 * 1024 * 1024 }) => {
   return (
     <div className="w-full">
       {/* Dropzone */}
-      <div
+      <motion.div
         {...getRootProps()}
-        className="border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all"
+        className="border-2 border-dashed rounded-xl p-8 sm:p-12 text-center cursor-pointer transition-all relative overflow-hidden"
         style={{
           borderColor: isDragActive ? 'var(--primary)' : 'var(--border)',
-          background: isDragActive ? 'var(--surface-secondary)' : 'transparent',
-          transform: isDragActive ? 'scale(1.02)' : 'scale(1)'
+          background: isDragActive ? 'var(--primary-bg)' : 'var(--surface-secondary)',
+        }}
+        whileHover={{ scale: 1.01, borderColor: 'var(--primary)' }}
+        animate={{
+          borderColor: isDragActive ? 'var(--primary)' : 'var(--border)',
         }}
       >
-        <input {...getInputProps()} />
+        {/* Animated background on drag */}
+        {isDragActive && (
+          <motion.div
+            className="absolute inset-0 opacity-10"
+            style={{ background: 'linear-gradient(135deg, var(--primary), var(--secondary))' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 0.1 }}
+          />
+        )}
+        
+        <input {...getInputProps()} aria-label="File upload input" />
         <motion.div
-          animate={isDragActive ? { scale: 1.1 } : { scale: 1 }}
-          transition={{ duration: 0.2 }}
+          animate={isDragActive ? { scale: 1.15, rotate: 5 } : { scale: 1, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 300 }}
+          className="relative z-10"
         >
-          <Upload className="mx-auto h-16 w-16 mb-4" style={{ color: isDragActive ? 'var(--primary)' : 'var(--text-tertiary)' }} />
+          <Upload className="mx-auto h-12 w-12 sm:h-16 sm:w-16 mb-4" style={{ color: isDragActive ? 'var(--primary)' : 'var(--text-tertiary)' }} />
         </motion.div>
-        <h3 className="text-xl font-semibold mb-2" style={{ color: 'var(--text)' }}>
+        <h3 className="text-lg sm:text-xl font-semibold mb-2 relative z-10" style={{ color: isDragActive ? 'var(--primary)' : 'var(--text)' }}>
           {isDragActive ? 'Drop files here' : 'Drag & drop files here'}
         </h3>
-        <p className="mb-4" style={{ color: 'var(--text-secondary)' }}>
+        <p className="mb-4 relative z-10 text-sm sm:text-base" style={{ color: 'var(--text-secondary)' }}>
           or click to browse
         </p>
-        <p className="text-sm" style={{ color: 'var(--text-tertiary)' }}>
-          Supports CSV, Excel (.xlsx, .xls) • Max {formatFileSize(maxSize)} per file
-        </p>
-      </div>
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-xs sm:text-sm relative z-10" style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-tertiary)' }}>
+          <CheckCircle className="w-4 h-4" style={{ color: 'var(--success)' }} />
+          <span>CSV, Excel (.xlsx, .xls) • Max {formatFileSize(maxSize)}</span>
+        </div>
+      </motion.div>
 
       {/* File List */}
       <AnimatePresence>

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Clock, CheckCircle, XCircle, Loader, Trash2, X as XIcon, Eye } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import api from '../api';
+import { NoDataState } from './EmptyStates';
+import { Spinner } from './LoadingStates';
 
 const JobQueuePanel = ({ onJobSelect, refreshTrigger }) => {
     const [jobs, setJobs] = useState([]);
@@ -92,9 +94,15 @@ const JobQueuePanel = ({ onJobSelect, refreshTrigger }) => {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center p-8">
-                <Loader className="h-8 w-8 text-blue-500 animate-spin" />
+            <div className="flex items-center justify-center p-12">
+                <Spinner size="lg" />
             </div>
+        );
+    }
+
+    if (jobs.length === 0) {
+        return (
+            <NoDataState message="No analysis jobs yet. Upload a file to get started!" />
         );
     }
 

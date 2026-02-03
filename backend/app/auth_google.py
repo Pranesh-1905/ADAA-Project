@@ -6,6 +6,11 @@ from app.config import settings
 from app.auth import create_access_token
 from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import timedelta
+from pydantic import BaseModel
+
+class CompleteProfileRequest(BaseModel):
+    email: str
+    username: str
 
 router = APIRouter()
 config = Config('.env')
@@ -41,24 +46,46 @@ async def auth_google_callback(request: Request):
     if not email:
         raise HTTPException(status_code=400, detail="Email not provided by Google")
     
-    # Check if user exists in DB, if not create one
-    user = await db.users.find_one({"username": email})
-    if not user:
-        # Create new user with email as username (no password for OAuth users)
-        await db.users.insert_one({
-            "username": email,
-            "name": name,
-            "oauth_provider": "google",
-            "hashed_password": ""  # No password for OAuth users
-        })
+    # Check if user exists in DB
+    user = await db.users.find_one({"email": email})
+    if user:
+        # User exists, log them in
+        access_token = create_access_token(
+            data={"sub": user["username"]}, 
+            expires_delta=timedelta(minutes=60 * 24)
+        )
+        frontend_url = f"http://localhost:5173/auth/callback?token={access_token}"
+        return RedirectResponse(url=frontend_url)
+    else:
+        # New user, redirect to complete profile page
+        frontend_url = f"http://localhost:5173/complete-profile?email={email}&name={name or ''}"
+        return RedirectResponse(url=frontend_url)
+
+@router.post('/auth/google/complete')
+async def complete_oauth_profile(profile: CompleteProfileRequest):
+    """Complete OAuth user profile with username"""
+    # Check if username already exists
+    existing = await db.users.find_one({"username": profile.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    # Check if email already registered
+    email_user = await db.users.find_one({"email": profile.email})
+    if email_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    # Create new OAuth user
+    await db.users.insert_one({
+        "username": profile.username,
+        "email": profile.email,
+        "oauth_provider": "google",
+        "hashed_password": ""  # No password for OAuth users
+    })
     
     # Create JWT token
     access_token = create_access_token(
-        data={"sub": email}, 
+        data={"sub": profile.username}, 
         expires_delta=timedelta(minutes=60 * 24)
     )
     
-    # Redirect to frontend with token
-    frontend_url = f"http://localhost:5173/auth/callback?token={access_token}"
-    return RedirectResponse(url=frontend_url)
-    return user_info  # For testing, return user info directly
+    return {"access_token": access_token, "token_type": "bearer"}

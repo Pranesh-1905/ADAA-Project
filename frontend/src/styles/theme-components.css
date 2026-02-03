@@ -5,18 +5,39 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 0.75rem 1.5rem;
-  border-radius: 0.5rem;
+  border-radius: 0.625rem;
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 0.9375rem;
   border: none;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
   outline: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.btn:active::before {
+  width: 300px;
+  height: 300px;
 }
 
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+  transform: none !important;
 }
 
 .btn:focus-visible {
@@ -28,16 +49,17 @@
 .btn-primary {
   background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
   color: var(--text-inverse);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-md), 0 0 0 rgba(59, 130, 246, 0);
 }
 
 .btn-primary:hover:not(:disabled) {
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
   transform: translateY(-2px);
 }
 
 .btn-primary:active:not(:disabled) {
   transform: translateY(0);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Secondary Button */
@@ -45,11 +67,13 @@
   background: var(--surface-tertiary);
   color: var(--text);
   border: 1px solid var(--border);
+  backdrop-filter: blur(var(--blur-sm));
 }
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--border);
   border-color: var(--divider);
+  transform: translateY(-1px);
 }
 
 /* Outline Button */
@@ -62,6 +86,8 @@
 .btn-outline:hover:not(:disabled) {
   background: var(--primary);
   color: var(--text-inverse);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 /* Ghost Button */
@@ -73,31 +99,76 @@
 
 .btn-ghost:hover:not(:disabled) {
   background: var(--surface-secondary);
+  transform: translateY(-1px);
+}
+
+/* Button Sizes */
+.btn-sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+
+.btn-lg {
+  padding: 1rem 2rem;
+  font-size: 1.0625rem;
 }
 
 /* ===== CARD STYLES ===== */
 .card {
   background: var(--surface);
-  border-radius: 0.75rem;
+  border-radius: 1rem;
   border: 1px solid var(--border);
   padding: 1.5rem;
   transition: all var(--transition-base);
   box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--primary), var(--secondary));
+  opacity: 0;
+  transition: opacity var(--transition-base);
 }
 
 .card:hover {
-  box-shadow: var(--shadow-md);
-  border-color: var(--divider);
+  box-shadow: var(--shadow-lg);
+  border-color: var(--primary);
+  transform: translateY(-2px);
+}
+
+.card:hover::before {
+  opacity: 1;
 }
 
 .card-lg {
   padding: 2rem;
-  border-radius: 1rem;
+  border-radius: 1.25rem;
 }
 
 .card-sm {
   padding: 1rem;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
+}
+
+/* Glass Card */
+.card-glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: 1px solid var(--surface-glass-border);
+  box-shadow: var(--shadow-lg);
+}
+
+.card-glass:hover {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-xl), var(--shadow-glow);
 }
 
 /* ===== INPUT STYLES ===== */
@@ -106,27 +177,92 @@
 .select {
   display: block;
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 0.5rem;
+  padding: 0.875rem 1.125rem;
+  border: 1.5px solid var(--border);
+  border-radius: 0.625rem;
   background: var(--surface);
   color: var(--text);
-  font-size: 1rem;
+  font-size: 0.9375rem;
   font-family: inherit;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
+  outline: none;
+}
+
+.input:hover,
+.textarea:hover,
+.select:hover {
+  border-color: var(--divider);
 }
 
 .input:focus,
 .textarea:focus,
 .select:focus {
-  outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 3px var(--primary-bg), var(--shadow-sm);
+  transform: translateY(-1px);
 }
 
 .input::placeholder,
 .textarea::placeholder {
   color: var(--text-tertiary);
+}
+
+.input:disabled,
+.textarea:disabled,
+.select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--surface-secondary);
+}
+
+/* Input with icon */
+.input-with-icon {
+  position: relative;
+}
+
+.input-with-icon .input {
+  padding-left: 2.75rem;
+}
+
+.input-with-icon .input-icon {
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* Error State */
+.input-error,
+.textarea-error {
+  border-color: var(--danger);
+}
+
+.input-error:focus,
+.textarea-error:focus {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-bg);
+}
+
+.error-message {
+  display: block;
+  margin-top: 0.5rem;
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+/* Success State */
+.input-success,
+.textarea-success {
+  border-color: var(--success);
+}
+
+.input-success:focus,
+.textarea-success:focus {
+  border-color: var(--success);
+  box-shadow: 0 0 0 3px var(--success-bg);
 }
 
 .textarea {
@@ -241,3 +377,80 @@
 
 .border-primary { border-color: var(--primary); }
 .border-secondary { border-color: var(--border); }
+
+/* Hover effects */
+.hover-lift {
+  transition: transform var(--transition-base);
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+}
+
+.hover-scale {
+  transition: transform var(--transition-base);
+}
+
+.hover-scale:hover {
+  transform: scale(1.05);
+}
+
+/* Animations */
+.animate-pulse-slow {
+  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Responsive text sizes */
+@media (max-width: 640px) {
+  .text-responsive-xl { font-size: 1.5rem; }
+  .text-responsive-lg { font-size: 1.25rem; }
+  .text-responsive-base { font-size: 1rem; }
+}
+
+@media (min-width: 641px) {
+  .text-responsive-xl { font-size: 2rem; }
+  .text-responsive-lg { font-size: 1.5rem; }
+  .text-responsive-base { font-size: 1.125rem; }
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: var(--surface-glass);
+  backdrop-filter: blur(var(--blur-lg));
+  -webkit-backdrop-filter: blur(var(--blur-lg));
+  border: 1px solid var(--surface-glass-border);
+}
+
+/* Gradient backgrounds */
+.bg-gradient-primary {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+}
+
+.bg-gradient-success {
+  background: linear-gradient(135deg, var(--success), var(--accent-teal));
+}
+
+.bg-gradient-danger {
+  background: linear-gradient(135deg, var(--danger), var(--accent-pink));
+}
+
+/* Interactive states */
+.interactive {
+  cursor: pointer;
+  transition: all var(--transition-base);
+}
+
+.interactive:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.interactive:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
