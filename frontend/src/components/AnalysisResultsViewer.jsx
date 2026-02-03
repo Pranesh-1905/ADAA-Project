@@ -1,14 +1,19 @@
 import { useState } from 'react';
-import { BarChart3, MessageSquare, FileText, TrendingUp, Download, X, Lightbulb, Database } from 'lucide-react';
+import { BarChart3, MessageSquare, FileText, TrendingUp, Download, X, Lightbulb, Database, Share2, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChartGallery from './ChartGallery';
 import AIChatInterface from './AIChatInterface';
 import InsightsPanel from './InsightsPanel';
 import RecommendationsPanel from './RecommendationsPanel';
 import DataQualityDashboard from './DataQualityDashboard';
+import ShareAnalysisModal from './ShareAnalysisModal';
+import CommentsPanel from './CommentsPanel';
+// VersionHistory disabled
 
-const AnalysisResultsViewer = ({ job, onClose }) => {
+const AnalysisResultsViewer = ({ job, onClose, onOpenChartBuilder }) => {
     const [activeTab, setActiveTab] = useState('summary');
+    const [showShareModal, setShowShareModal] = useState(false);
+    const [showCollabPanel, setShowCollabPanel] = useState(false);
 
     if (!job || !job.result) {
         return (
@@ -26,16 +31,51 @@ const AnalysisResultsViewer = ({ job, onClose }) => {
         { id: 'recommendations', label: 'Recommendations', icon: Lightbulb },
         { id: 'charts', label: 'Charts', icon: BarChart3 },
         { id: 'ask', label: 'Ask AI', icon: MessageSquare },
+        { id: 'collaboration', label: 'Collaboration', icon: MessageSquare },
     ];
 
-    const handleExportPDF = () => {
-        // TODO: Implement PDF export
-        alert('PDF export will be implemented in Phase 4');
+    const handleExportPDF = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://127.0.0.1:8000/export/pdf/${job.task_id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Export failed');
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analysis_report_${job.task_id.substring(0, 8)}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('PDF export failed:', error);
+            alert('Failed to export PDF. Please try again.');
+        }
     };
 
-    const handleExportExcel = () => {
-        // TODO: Implement Excel export
-        alert('Excel export will be implemented in Phase 4');
+    const handleExportExcel = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`http://127.0.0.1:8000/export/excel/${job.task_id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (!response.ok) throw new Error('Export failed');
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `analysis_${job.task_id.substring(0, 8)}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (error) {
+            console.error('Excel export failed:', error);
+            alert('Failed to export Excel. Please try again.');
+        }
     };
 
     return (
@@ -72,6 +112,13 @@ const AnalysisResultsViewer = ({ job, onClose }) => {
                         >
                             <Download className="h-4 w-4" />
                             Excel
+                        </button>
+                        <button
+                            onClick={() => setShowShareModal(true)}
+                            className="btn btn-secondary flex items-center gap-2"
+                        >
+                            <Share2 className="h-4 w-4" />
+                            Share
                         </button>
                         <button
                             onClick={onClose}
@@ -264,7 +311,20 @@ const AnalysisResultsViewer = ({ job, onClose }) => {
                                 initial={{ opacity: 0, x: -20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: 20 }}
+                                className="space-y-4"
                             >
+                                {/* Custom Chart Builder Button */}
+                                {onOpenChartBuilder && (
+                                    <div className="flex justify-end">
+                                        <button
+                                            onClick={onOpenChartBuilder}
+                                            className="btn btn-primary flex items-center gap-2"
+                                        >
+                                            <Plus className="h-4 w-4" />
+                                            Create Custom Chart
+                                        </button>
+                                    </div>
+                                )}
                                 <ChartGallery job={job} />
                             </motion.div>
                         )}
@@ -279,9 +339,32 @@ const AnalysisResultsViewer = ({ job, onClose }) => {
                                 <AIChatInterface taskId={job.task_id} />
                             </motion.div>
                         )}
+
+                        {activeTab === 'collaboration' && (
+                            <motion.div
+                                key="collaboration"
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: 20 }}
+                            >
+                                <div className="grid grid-cols-1 gap-6">
+                                    <div className="card">
+                                        <CommentsPanel taskId={job.task_id} />
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
                     </AnimatePresence>
                 </div>
             </motion.div>
+
+            {/* Phase 4 Modals */}
+            {showShareModal && (
+                <ShareAnalysisModal
+                    analysisId={job.task_id}
+                    onClose={() => setShowShareModal(false)}
+                />
+            )}
         </div>
     );
 };

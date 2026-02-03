@@ -1,19 +1,43 @@
 import { useState, useEffect } from 'react';
-import { X, ZoomIn, Download, Maximize2 } from 'lucide-react';
+import { X, ZoomIn, Download, Maximize2, Edit2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Plot from 'react-plotly.js';
 import api from '../api';
+import ChartEditor from './ChartEditor';
 
 const ChartGallery = ({ job }) => {
     const [charts, setCharts] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedChart, setSelectedChart] = useState(null);
     const [generatingCharts, setGeneratingCharts] = useState(false);
+    const [showChartEditor, setShowChartEditor] = useState(false);
+    const [chartToEdit, setChartToEdit] = useState(null);
 
     useEffect(() => {
+        // Combine auto-generated charts and custom charts
+        const allCharts = [];
+        
+        // Add auto-generated charts
         if (job?.charts && job.charts.length > 0) {
-            setCharts(job.charts);
+            allCharts.push(...job.charts);
         }
+        
+        // Add custom charts
+        if (job?.custom_charts && job.custom_charts.length > 0) {
+            // Convert custom charts to display format
+            const customCharts = job.custom_charts.map(chart => ({
+                ...chart,
+                isCustom: true,
+                data: chart.data, // Plotly data
+                layout: chart.layout, // Plotly layout
+                title: chart.name || chart.metadata?.config?.title || 'Custom Chart'
+            }));
+            allCharts.push(...customCharts);
+        }
+        
+        setCharts(allCharts);
     }, [job]);
+
 
     const handleGenerateCharts = async () => {
         setGeneratingCharts(true);
@@ -96,12 +120,33 @@ const ChartGallery = ({ job }) => {
                         className="card overflow-hidden group hover:shadow-lg transition-all"
                     >
                         <div className="relative">
-                            <img
-                                src={chart.data}
-                                alt={chart.title || 'Chart'}
-                                className="w-full h-48 object-contain bg-white p-4 cursor-pointer"
-                                onClick={() => setSelectedChart(chart)}
-                            />
+                            {chart.isCustom ? (
+                                // Render Plotly custom chart
+                                <div 
+                                    className="w-full h-48 bg-white p-2 cursor-pointer"
+                                    onClick={() => setSelectedChart(chart)}
+                                >
+                                    <Plot
+                                        data={chart.data}
+                                        layout={{
+                                            ...chart.layout,
+                                            height: 180,
+                                            autosize: true,
+                                            margin: { l: 40, r: 20, t: 30, b: 40 }
+                                        }}
+                                        config={{ displayModeBar: false, responsive: true }}
+                                        style={{ width: '100%', height: '100%' }}
+                                    />
+                                </div>
+                            ) : (
+                                // Render image-based chart
+                                <img
+                                    src={chart.data}
+                                    alt={chart.title || 'Chart'}
+                                    className="w-full h-48 object-contain bg-white p-4 cursor-pointer"
+                                    onClick={() => setSelectedChart(chart)}
+                                />
+                            )}
                             <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                                 <button
                                     onClick={() => setSelectedChart(chart)}
@@ -109,6 +154,16 @@ const ChartGallery = ({ job }) => {
                                     title="View Full Size"
                                 >
                                     <Maximize2 className="h-5 w-5 text-gray-900" />
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setChartToEdit(chart);
+                                        setShowChartEditor(true);
+                                    }}
+                                    className="p-2 bg-white rounded-lg hover:bg-gray-100 transition-colors"
+                                    title="Edit Chart"
+                                >
+                                    <Edit2 className="h-5 w-5 text-gray-900" />
                                 </button>
                                 <button
                                     onClick={() => handleDownloadChart(chart)}
@@ -168,16 +223,42 @@ const ChartGallery = ({ job }) => {
                                 </div>
                             </div>
 
-                            {/* Chart Image */}
-                            <img
-                                src={selectedChart.data}
-                                alt={selectedChart.title || 'Chart'}
-                                className="w-full h-full object-contain p-8"
-                            />
+                            {/* Chart Content */}
+                            {selectedChart.isCustom ? (
+                                <div className="bg-white p-4">
+                                    <Plot
+                                        data={selectedChart.data}
+                                        layout={{
+                                            ...selectedChart.layout,
+                                            autosize: true,
+                                            height: 600
+                                        }}
+                                        config={{ responsive: true }}
+                                        style={{ width: '100%', height: '600px' }}
+                                    />
+                                </div>
+                            ) : (
+                                <img
+                                    src={selectedChart.data}
+                                    alt={selectedChart.title || 'Chart'}
+                                    className="w-full h-full object-contain p-8"
+                                />
+                            )}
                         </motion.div>
                     </motion.div>
                 )}
             </AnimatePresence>
+
+            {/* Chart Editor Modal */}
+            {showChartEditor && chartToEdit && (
+                <ChartEditor
+                    chart={chartToEdit}
+                    onClose={() => {
+                        setShowChartEditor(false);
+                        setChartToEdit(null);
+                    }}
+                />
+            )}
         </div>
     );
 };

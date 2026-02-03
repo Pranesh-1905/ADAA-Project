@@ -21,3 +21,5 @@ xlrd
 kaleido
 scipy>=1.11.0
 statsmodels>=0.14.0
+reportlab
+Pillow
